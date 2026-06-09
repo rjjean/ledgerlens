@@ -4,7 +4,8 @@ Citation-grounded RAG over a corpus of SEC filings, with a published evaluation
 dashboard proving retrieval and answer quality.
 
 **Status:** Phase 0 complete — runnable scaffold with swappable seams (fake backends
-default). No real ingestion, retrieval, or LLM calls yet.
+default). Phase 1 (ingestion + chunking) is next. No real ingestion, retrieval, or
+LLM calls yet.
 
 ## What it is
 

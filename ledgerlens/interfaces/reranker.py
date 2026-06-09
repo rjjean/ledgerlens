@@ -1,4 +1,4 @@
-﻿"""Reranker seam - cross-encoder over fused retrieval candidates."""
+"""Reranker seam - cross-encoder over fused retrieval candidates."""
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
