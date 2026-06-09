@@ -1,0 +1,28 @@
+# Secrets
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Data (large / regenerable)
+data/raw/
+
+# Obsidian vault config (local/personal)
+.obsidian/
+.trash/
+
+# Cursor personal (machine-specific) rules — shared rules stay tracked
+.cursor/rules/personal.mdc
+
+# OS
+.DS_Store

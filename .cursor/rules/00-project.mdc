@@ -1,0 +1,50 @@
+---
+description: Ledgerlens core context and non-negotiable guardrails. Always loaded.
+globs:
+alwaysApply: true
+---
+
+# Ledgerlens — core rules (always on)
+
+This folder is a Python project, an Obsidian vault, and a Cursor workspace at once.
+**Ledgerlens** is a citation-grounded RAG product over SEC filings with a published
+evaluation harness — the flagship portfolio project. Current-arc goal: ship the MVP
+(tech filings -> hybrid retrieval -> cited answers) to a live URL before the v1
+differentiators.
+
+## Source of truth (read before acting)
+- `handoff.md` — current state; the source of truth for where the build is. Read it first.
+- `Ledgerlens_System_Design_FINAL.md` — locked architecture + stack (authoritative).
+- `docs/PHASE_0_BUILD.md` — the spec for the first build task.
+- `docs/BUILD_PLAN.md` — phase tracker with done-when gates.
+- `docs/adr/` — decision records (the *why* behind each choice).
+
+## Hard rules (do not violate)
+- Do NOT re-litigate locked decisions (design doc section 6): Neon+pgvector single DB,
+  Dagster-in-CI, voyage-finance-2, in-process MiniLM rerank, thin custom RAG core,
+  Haiku 4.5 generator, Ragas+DeepEval, Langfuse. Propose changes as a NEW ADR; never
+  silently swap them.
+- The seam pattern is non-negotiable: code depends on `ledgerlens/interfaces/`
+  (Embedder / Reranker / LLMClient) via `factory.py` — never call a vendor SDK directly
+  elsewhere. A new model is a config change. (Details in the Python rule.)
+- Ship narrow and finish. The data layer is the headline, not the LLM.
+- Run `python scripts/smoke_test.py` and `pytest` before calling any change done
+  (these exist once Phase 0 is built).
+- Respect EDGAR rate limits (declared User-Agent + throttling) in ingestion.
+- Never run Dagster as an always-on daemon — it runs in GitHub Actions / locally.
+- Spend caps must exist before any paid API call.
+
+## Locked: MVP corpus
+~15-20 large-cap tech/software filings. Financials expansion is a v1 narrative beat.
+
+## Current phase
+**Nothing is built yet.** The FIRST task is to build the Phase 0 scaffold per
+`docs/PHASE_0_BUILD.md` and the design doc (section 6 decisions, section 11 structure).
+Phase 0 is plumbing only — do NOT add real ingestion / retrieval / LLM logic.
+ADR-0001 (Phase 0) may be drafted from the template + design doc Stage 4; ADR-0002
+(chunking, Phase 1) is authored by hand with Ryan. See `handoff.md` for live state.
+
+## Session hygiene
+- Start a session by reading `handoff.md`.
+- End a session by updating `handoff.md` (state, in-flight files, dead-ends, next steps)
+  and ticking `docs/BUILD_PLAN.md` boxes. Commit.
