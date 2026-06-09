@@ -12,10 +12,10 @@ Ship rule: a live URL + README + eval numbers for ONE finished project beats thr
 unfinished repos. Build narrow, finish, then iterate.
 
 ## MVP — get to a live URL (~2–3 wks)
-- [ ] **Phase 0 — Foundations & seams.** *First task.* Repo scaffold, swappable
+- [x] **Phase 0 — Foundations & seams.** *First task.* Repo scaffold, swappable
       Embedder / Reranker / LLM interfaces (stubs run), config single-source-of-truth,
       ADR-0001, spend-cap checklist. Build per `docs/PHASE_0_BUILD.md`.
-      *Done-when:* `smoke_test.py` is green and `pytest` passes.
+      *Done-when:* `smoke_test.py` is green and `pytest` passes. *(2026-06-09 — green; awaiting review sign-off.)*
 - [ ] **Phase 1 — Ingestion + chunking (the moat).** ~15–20 filings via edgartools,
       section extraction, structure-aware parent/child chunking, tables intact, full
       provenance metadata. *Write ADR-0002 (chunking) — Ryan authors by hand.*

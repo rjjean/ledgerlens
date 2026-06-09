@@ -1,3 +1,11 @@
+---
+type: adr
+status: proposed
+phase: 0
+updated: 2026-06-09
+related: ["[[BUILD_PLAN]]"]
+---
+
 # ADR-NNNN: <short title of the decision>
 
 - **Status:** Proposed | Accepted | Superseded by ADR-XXXX

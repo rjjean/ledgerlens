@@ -8,7 +8,7 @@ related: ["[[index]]", "[[BUILD_PLAN]]", "[[PHASE_0_BUILD]]"]
 
 # Ledgerlens — Session Handoff
 
-*Last updated: 2026-06-09 — repo initialized, no code built yet.*
+*Last updated: 2026-06-09 — Phase 0 scaffold built; awaiting review.*
 *Update at the close of every build session.*
 
 ## Goal
@@ -23,19 +23,25 @@ Ship rule: a live URL + eval numbers for one finished project beats unfinished r
 - Full stack locked in `Ledgerlens_System_Design_FINAL.md` §6 — do not re-litigate.
 
 ## Current state of the code
-**Nothing built yet.** The repo holds only the documentation/context layer: the
-design doc, planning docs, `BUILD_PLAN`, `CONVENTIONS`, `PHASE_0_BUILD`, the Cursor
-rules, and this handoff. No Python package, no scaffold, no tests.
+**Phase 0 scaffold is in place** (pending your review). Runnable package with:
+- `ledgerlens/config.py` — pydantic-settings single source of truth (`embedder_dimensions`
+  has one home for fake + real backends).
+- `ledgerlens/interfaces/` — Embedder, Reranker, LLMClient ABCs; Fake* defaults;
+  Voyage / CrossEncoder / LiteLLM lazy-import impls; `factory.py`.
+- Phase placeholders: `ingestion/`, `retrieval/`, `api/`, `eval/`, `observability/`.
+- `scripts/smoke_test.py`, `scripts/check_pgvector.py`, `tests/test_interfaces.py`.
+- ADR-0001, `docs/architecture.md` placeholder, README quickstart + account checklist.
+- `pyproject.toml` with phased optional-deps (`edgartools~=5.35` pinned; others loose).
+
+Verified: `pip install -e ".[dev]"`, smoke test GREEN, `pytest` 4 passed.
 
 ## Files currently being edited / in-flight
-- None. Awaiting the Phase 0 build.
+- None — Phase 0 diff ready for review.
 
-## Next steps — Phase 0 (Foundations & seams)
-Build the scaffold per `docs/PHASE_0_BUILD.md` and the design doc (§6 decisions,
-§11 structure). In Composer:
-> "Build Phase 0 per docs/PHASE_0_BUILD.md and Ledgerlens_System_Design_FINAL.md."
-Done-when: `python scripts/smoke_test.py` prints "Phase 0 plumbing is GREEN" and
-`pytest` passes. Then write ADR-0001 and update this handoff + BUILD_PLAN.
+## Next steps — Phase 1 (Ingestion + chunking)
+After Phase 0 sign-off: settle MVP ticker list (~15–20 large-cap tech); build
+edgartools ingestion per `docs/BUILD_PLAN.md`. **ADR-0002 (chunking) is authored by
+hand with Ryan** — do not auto-generate.
 
 ## What was tried that failed / dead-ends
 - None yet — fresh repo. Known traps to avoid (from the design doc): over-scoping,
@@ -43,4 +49,5 @@ Done-when: `python scripts/smoke_test.py` prints "Phase 0 plumbing is GREEN" and
   daemon, and skipping spend caps before paid calls.
 
 ## Phase completion log
-- (empty — Phase 0 is the first build, in progress)
+- **Phase 0** — scaffold + seams + ADR-0001 (2026-06-09). Smoke test GREEN; pytest 4 passed.
+  Awaiting explicit sign-off before marking fully closed.
