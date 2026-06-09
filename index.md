@@ -29,16 +29,6 @@ vault**, and a **Cursor workspace** (worked in Composer / Agent).
 - Decision template: [[0000-adr-template]] (ADR-0001 is written during Phase 0).
 
 > The AI guardrails Cursor follows live in `.cursor/rules/` (`00-project` always on;
-> `10-python` and `20-obsidian-notes` attach by file type). `CLAUDE.md` is optional
-> and not present by default — only used if you run Claude Code.
-
-## Strategy
-- [[Career_Blueprint_Ryan_Jean]] — career-targeting frame (where to aim).
-- [[Project_Portfolio_Blueprint_Ryan_Jean]] — what to build and why.
-
-## Queued projects (after Ledgerlens ships)
-- [[02_MerchantIQ_Project_Outline]] — transaction categorization / merchant matching.
-- [[03_AskWarehouse_Project_Outline]] — agentic text-to-SQL data copilot.
-
+> `10-python` and `20-obsidian-notes` attach by file type). 
 ## Current focus
 **Phase 0 — build the scaffold (first task).** See [[PHASE_0_BUILD]] and [[handoff]].
