@@ -16,6 +16,7 @@ build/
 
 # Data (large / regenerable)
 data/raw/
+data/processed/
 
 # Obsidian vault config (local/personal)
 .obsidian/

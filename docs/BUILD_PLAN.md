@@ -3,7 +3,7 @@ type: plan
 status: active
 phase: 1
 updated: 2026-06-09
-related: ["[[handoff]]", "[[PHASE_0_BUILD]]", "[[Ledgerlens_System_Design_FINAL]]"]
+related: ["[[handoff]]", "[[PHASE_0_BUILD]]", "[[PHASE_1_BUILD]]", "[[Ledgerlens_System_Design_FINAL]]"]
 ---
 
 # Build Plan & Phase Tracker

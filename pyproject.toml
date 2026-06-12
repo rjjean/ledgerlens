@@ -28,6 +28,7 @@ llm = [
 ]
 ingestion = [
     "edgartools~=5.35",
+    "tiktoken>=0.7",
 ]
 api = [
     "fastapi>=0.115",
