@@ -3,7 +3,7 @@ type: index
 status: active
 phase: 2
 updated: 2026-06-13
-related: ["[[handoff]]", "[[BUILD_PLAN]]", "[[PHASE_1_BUILD]]"]
+related: ["[[handoff]]", "[[BUILD_PLAN]]", "[[PHASE_1_BUILD]]", "[[PHASE_2_BUILD]]"]
 ---
 
 # Ledgerlens — Vault Home
@@ -18,7 +18,7 @@ vault**, and a **Cursor workspace** (worked in Composer / Agent).
 
 ## Start here
 - [[handoff]] — where the build is right now. **Read first every session.**
-- [[BUILD_PLAN]] — phase tracker; Phase 2 is storage + embeddings.
+- [[PHASE_2_BUILD]] — the active build task (storage + embeddings).
 - [[GETTING_STARTED]] — setup + how to work in Cursor + Composer.
 - [[CONVENTIONS]] — how this vault/repo is organized and edited.
 

@@ -38,11 +38,22 @@ differentiators.
 ~15-20 large-cap tech/software filings. Financials expansion is a v1 narrative beat.
 
 ## Current phase
-**Nothing is built yet.** The FIRST task is to build the Phase 0 scaffold per
-`docs/PHASE_0_BUILD.md` and the design doc (section 6 decisions, section 11 structure).
-Phase 0 is plumbing only — do NOT add real ingestion / retrieval / LLM logic.
-ADR-0001 (Phase 0) may be drafted from the template + design doc Stage 4; ADR-0002
-(chunking, Phase 1) is authored by hand with Ryan. See `handoff.md` for live state.
+Phase 2 — Storage & embeddings (active). Phases 0 (scaffold + seams) and 1
+(ingestion + chunking, 3-ticker validated, 904 chunks) are complete. Build Phase 2 per
+docs/PHASE_2_BUILD.md and the design doc (Stage 4 storage, Stage 6 embeddings).
+
+Scope this phase: apply the Neon schema (flattened-provenance chunks table, HNSW +
+GIN indexes), embed children + table summaries through the existing Embedder seam
+(voyage-finance-2), upsert idempotently, and reconcile embedded-count vs chunk-count.
+Do NOT build retrieval (no query path / RRF / rerank — that's Phase 3). psycopg is
+imported only inside ledgerlens/storage/. Keep EMBEDDER_BACKEND=fake until the
+pipeline is green on fakes; set the Voyage spend cap before the first real run.
+
+ADRs are authored by hand by Ryan (the ADR-0002 pattern). The storage decision is
+already recorded in ADR-0001 — do not re-litigate it. If a schema-normalization call
+feels decision-grade, flag it for Ryan; the agent does not draft the ADR.
+
+See handoff.md for live state.
 
 ## Session hygiene
 - Start a session by reading `handoff.md`.
