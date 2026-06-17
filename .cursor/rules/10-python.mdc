@@ -1,0 +1,35 @@
+---
+description: Python code conventions and the seam pattern for Ledgerlens.
+globs: **/*.py
+alwaysApply: false
+---
+
+# Python conventions (Ledgerlens)
+
+Applies when creating or editing Python files. The package layout is created in
+Phase 0 per `docs/PHASE_0_BUILD.md` and design doc section 11; these conventions
+govern it from the first file.
+
+## The seam pattern (enforce strictly)
+- Depend on the abstract interfaces in `ledgerlens/interfaces/` — `Embedder`,
+  `Reranker`, `LLMClient` — obtained via `ledgerlens/interfaces/factory.py`
+  (`get_embedder()`, `get_reranker()`, `get_llm()`).
+- NEVER import or call a vendor SDK (voyageai, sentence_transformers, litellm, etc.)
+  outside its interface implementation. Selecting a model/provider is a config change
+  in `config.py` / `.env`, never code scattered across modules.
+- Real backend implementations lazy-import their heavy SDK inside methods so the
+  default `fake` backends stay dependency-free.
+
+## Stack & style
+- Python 3.12. FastAPI + Pydantic v2. Type everything; prefer typed request/response models.
+- Configuration is centralized in `config.py` (pydantic-settings) — the single source of
+  truth. Don't hardcode model names, endpoints, or backends elsewhere.
+- Secrets live in `.env` (gitignored). Never hardcode API keys.
+
+## Dependencies come online per phase
+- Install only the phase's group from `pyproject.toml` optional-deps:
+  `pip install -e '.[ingestion]'`, `'.[storage]'`, `'.[rerank]'`, `'.[llm]'`, etc.
+- Don't pull a dependency group before its phase needs it.
+
+## Before declaring done
+- `python scripts/smoke_test.py` (expect GREEN) and `pytest` must pass.

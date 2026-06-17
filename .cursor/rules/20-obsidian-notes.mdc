@@ -1,0 +1,37 @@
+---
+description: Obsidian vault note conventions, frontmatter schema, and the ADR process.
+globs: **/*.md
+alwaysApply: false
+---
+
+# Obsidian / docs conventions (Ledgerlens)
+
+Applies when creating or editing markdown docs (this repo is an Obsidian vault).
+
+## Wiki-links
+- Link notes with `[[note-name]]`: `[[handoff]]`, `[[BUILD_PLAN]]`,
+  `[[PHASE_0_BUILD]]`. Obsidian resolves by note name across folders.
+- Confirm the target note exists; keep filenames link-safe (avoid `: / # | [ ]`;
+  underscores and hyphens are fine).
+
+## Frontmatter (every doc; bump `updated:` on edit)
+Use this block at the top of every doc:
+
+    ---
+    type: index | handoff | adr | design | plan | blueprint
+    status: active | accepted | superseded
+    phase: 0-8
+    updated: YYYY-MM-DD
+    related: ["[[handoff]]", "[[BUILD_PLAN]]"]
+    ---
+
+## ADRs
+- One file per decision in `docs/adr/`, numbered `NNNN-kebab-title.md`, from
+  `0000-adr-template.md`. Record the rejected alternatives — that's the part reviewers read.
+- ADR-0002 (chunking) is authored BY HAND with Ryan — do not auto-generate it.
+
+## Don't touch
+- Never edit `.obsidian/` (Obsidian's local config) or `.trash/`.
+
+## Session hygiene
+- End of session: update `[[handoff]]` and tick `[[BUILD_PLAN]]` boxes.

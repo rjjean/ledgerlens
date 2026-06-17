@@ -1,0 +1,23 @@
+# Obsidian internals — keep out of AI context and indexing
+.obsidian/
+.trash/
+
+# VCS / env / caches
+.git/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Secrets & large/regenerable data
+.env
+.env.*
+data/raw/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/

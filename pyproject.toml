@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ledgerlens"
+version = "0.1.0"
+description = "Citation-grounded RAG over SEC filings"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+]
+
+[project.optional-dependencies]
+storage = [
+    "psycopg[binary]>=3.1",
+]
+embeddings = [
+    "voyageai>=0.3",
+]
+rerank = [
+    "sentence-transformers>=3.0",
+]
+llm = [
+    "litellm>=1.50",
+]
+ingestion = [
+    "edgartools~=5.35",
+    "tiktoken>=0.7",
+]
+api = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+]
+evaluation = [
+    "ragas>=0.2",
+    "deepeval>=1.0",
+]
+obs = [
+    "langfuse>=2.0",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["ledgerlens"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
