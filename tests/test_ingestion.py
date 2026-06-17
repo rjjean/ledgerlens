@@ -11,7 +11,12 @@ import pytest
 from ledgerlens.config import Settings
 from ledgerlens.ingestion.models import ChunkType, FilingCandidate
 from ledgerlens.ingestion.pipeline import process_ticker, run_ingestion, write_sample
-from ledgerlens.ingestion.quality import dedupe_candidates, validate_provenance
+from ledgerlens.ingestion.models import ChunkRecord, ChunkType, Provenance
+from ledgerlens.ingestion.quality import (
+    dedupe_candidates,
+    validate_child_token_sizes,
+    validate_provenance,
+)
 from ledgerlens.ingestion.sources import FakeFilingSource, get_filing_source
 
 
@@ -54,7 +59,69 @@ def test_pipeline_produces_chunks_with_provenance(fake_settings: Settings):
     table_chunks = [c for c in chunks if c.chunk_type == ChunkType.TABLE]
     assert table_chunks[0].summary
     assert table_chunks[0].table_data
+    assert table_chunks[0].parent_id is not None
     assert "|" in table_chunks[0].text
+
+
+def test_soft_token_oversize_warns_not_quarantines(fake_settings: Settings):
+    source = FakeFilingSource(fake_settings)
+    _, result = process_ticker("FAKE", source, fake_settings)
+    assert result is not None
+    assert result.status == "succeeded"
+
+
+def test_child_token_soft_max_is_warning_only(fake_settings: Settings):
+    settings = fake_settings.model_copy(update={"child_max_tokens": 10, "child_hard_max_tokens": 800})
+    text = "word " * 50
+    chunk = ChunkRecord(
+        id="child-1",
+        chunk_type=ChunkType.CHILD,
+        text=text,
+        parent_id="parent-1",
+        token_count=50,
+        provenance=Provenance(
+            company="C",
+            ticker="T",
+            cik="1",
+            form_type="10-K",
+            fiscal_period="2024-12-31",
+            section="Item 1",
+            accession_no="acc",
+            source_url="https://example.com",
+            char_start=0,
+            char_end=len(text),
+        ),
+    )
+    errors, warnings = validate_child_token_sizes([chunk], settings)
+    assert not errors
+    assert warnings
+
+
+def test_child_token_hard_max_quarantines(fake_settings: Settings):
+    settings = fake_settings.model_copy(update={"child_hard_max_tokens": 20})
+    text = "word " * 500
+    chunk = ChunkRecord(
+        id="child-1",
+        chunk_type=ChunkType.CHILD,
+        text=text,
+        parent_id="parent-1",
+        token_count=500,
+        provenance=Provenance(
+            company="C",
+            ticker="T",
+            cik="1",
+            form_type="10-K",
+            fiscal_period="2024-12-31",
+            section="Item 1",
+            accession_no="acc",
+            source_url="https://example.com",
+            char_start=0,
+            char_end=len(text),
+        ),
+    )
+    errors, warnings = validate_child_token_sizes([chunk], settings)
+    assert errors
+    assert not warnings
 
 
 def test_dedup_prefers_amendment_by_filing_date():

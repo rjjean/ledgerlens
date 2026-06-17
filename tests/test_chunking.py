@@ -50,7 +50,10 @@ def test_tables_are_never_sliced():
     chunks = chunk_sections(filing, [section], _settings())
 
     table_chunks = [c for c in chunks if c.chunk_type == ChunkType.TABLE]
+    parents = [c for c in chunks if c.chunk_type == ChunkType.PARENT]
     assert len(table_chunks) == 1
+    assert len(parents) == 1
+    assert table_chunks[0].parent_id == parents[0].id
     assert table_chunks[0].table_data is not None
     assert len(table_chunks[0].table_data["rows"]) == 2
     assert table_text in table_chunks[0].text

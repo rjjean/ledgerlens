@@ -1,8 +1,8 @@
 ---
 type: plan
 status: active
-phase: 1
-updated: 2026-06-09
+phase: 2
+updated: 2026-06-13
 related: ["[[handoff]]", "[[PHASE_0_BUILD]]", "[[PHASE_1_BUILD]]", "[[Ledgerlens_System_Design_FINAL]]"]
 ---
 
@@ -16,9 +16,11 @@ unfinished repos. Build narrow, finish, then iterate.
       Embedder / Reranker / LLM interfaces (stubs run), config single-source-of-truth,
       ADR-0001, spend-cap checklist. Build per `docs/PHASE_0_BUILD.md`.
       *Done-when:* `smoke_test.py` is green and `pytest` passes. *(2026-06-09 — complete.)*
-- [ ] **Phase 1 — Ingestion + chunking (the moat).** ~15–20 filings via edgartools,
+- [x] **Phase 1 — Ingestion + chunking (the moat).** 18 tickers via edgartools,
       section extraction, structure-aware parent/child chunking, tables intact, full
-      provenance metadata. *Write ADR-0002 (chunking) — Ryan authors by hand.*
+      provenance metadata. ADR-0002 accepted.
+      *Done-when:* 3-ticker validation succeeds; pytest offline; chunks on disk.
+      *(2026-06-13 — complete.)*
 - [ ] **Phase 2 — Storage + embeddings.** Neon schema, voyage-finance-2 behind the
       Embedder seam, HNSW + FTS indexes, embedding/chunk count reconciles.
 - [ ] **Phase 3 — Retrieval.** FTS + pgvector + RRF (k=60) + MiniLM rerank. Informal
@@ -41,5 +43,5 @@ unfinished repos. Build narrow, finish, then iterate.
 - [ ] LangGraph multi-doc comparison, MCP server, earnings transcripts, financial-sector
       corpus expansion, optional Cohere rerank A/B.
 
-## Open decision (settle at the start of Phase 1)
-- Exact ticker list for the ~15–20 large-cap tech MVP corpus.
+## Resolved (Phase 1)
+- MVP ticker list locked (18 tickers in `config.py`).

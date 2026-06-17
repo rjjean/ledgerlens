@@ -2,7 +2,7 @@
 type: adr
 status: accepted
 phase: 1
-updated: 2026-06-12
+updated: 2026-06-13
 related: ["[[BUILD_PLAN]]", "[[Ledgerlens_System_Design_FINAL]]", "[[PHASE_1_BUILD]]"]
 ---
 
@@ -19,7 +19,11 @@ The decision is to use structure-aware splitting along the section boundaries th
 
 On top of this, a parent/child strategy is used. The document is divided along its provided boundaries into parent sections, and each parent is then divided into 300–500-token children that are embedded as vectors. Serving both retrieval and generation with a single chunk size forces a bad compromise; parent/child decouples them. The small, precise child is what gets embedded and retrieved, but at synthesis time the LLM is handed the larger parent section the child belongs to. Retrieval gets precision, generation gets context, and neither pays for the other.
 
-Tables are handled separately. Slicing a table produces unaligned numbers stripped of their headers and context, data that looks real but is useless. To avoid this, tables are extracted fully intact and paired with a short text summary, so the table is both retrievable (via the summary) and citable (as the intact table).
+Tables are handled separately. Slicing a table produces unaligned numbers stripped of their headers and context, data that looks real but is useless. To avoid this, tables are extracted fully intact and paired with a short text summary, so the table is both retrievable (via the summary) and citable (as the intact table). Table chunks link upward to their section parent via `parent_id` (no child chunks beneath a table) so synthesis-time parent expansion and section-scoped retrieval work the same way for prose and tables.
+
+## Known edge cases (deferred)
+- **Soft token overflows (~2–3% of children, mostly Item 8):** Dense financial sections produce a small share of children slightly above the 500-token soft max when a single paragraph exceeds the limit. The chunker respects paragraph boundaries and does not slice mid-sentence; these are logged as warnings, not quarantined. Revisit if Phase 7 eval shows poor faithfulness on those specific chunks.
+- **Item 6 [Reserved] and other near-empty sections:** Filers sometimes emit placeholder sections with negligible text. A minimum-token filter may be added post–Phase 2; not blocking ingestion now.
 
 ## Consequences
 **Harder / accepted:**

@@ -119,6 +119,7 @@ class FilingQualityResult(BaseModel):
     accession_no: str
     status: str  # succeeded | quarantined
     reason: str | None = None
+    warnings: list[str] = Field(default_factory=list)
     sections_found: list[str] = Field(default_factory=list)
     sections_missing: list[str] = Field(default_factory=list)
     chunk_count: int = 0

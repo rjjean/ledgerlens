@@ -65,28 +65,44 @@ def validate_provenance(chunks: list[ChunkRecord]) -> list[str]:
     return errors
 
 
-def validate_child_token_sizes(chunks: list[ChunkRecord], settings: Settings) -> list[str]:
+def validate_child_token_sizes(
+    chunks: list[ChunkRecord],
+    settings: Settings,
+) -> tuple[list[str], list[str]]:
+    """Return (quarantine_errors, warnings).
+
+    Exceeding child_max_tokens is a soft warning — a single long paragraph can
+    legitimately exceed the target. Only empty children or tokens above
+    child_hard_max_tokens trigger quarantine.
+    """
     errors: list[str] = []
+    warnings: list[str] = []
     for chunk in chunks:
         if chunk.chunk_type != ChunkType.CHILD:
             continue
         tokens = count_tokens(chunk.text)
-        if tokens > settings.child_max_tokens:
-            errors.append(
-                f"{chunk.id}: child has {tokens} tokens (max {settings.child_max_tokens})"
-            )
         if tokens == 0:
             errors.append(f"{chunk.id}: empty child chunk")
-    return errors
+        elif tokens > settings.child_hard_max_tokens:
+            errors.append(
+                f"{chunk.id}: child has {tokens} tokens "
+                f"(hard max {settings.child_hard_max_tokens})"
+            )
+        elif tokens > settings.child_max_tokens:
+            warnings.append(
+                f"{chunk.id}: child has {tokens} tokens "
+                f"(soft max {settings.child_max_tokens})"
+            )
+    return errors, warnings
 
 
 def validate_parent_child_links(chunks: list[ChunkRecord]) -> list[str]:
     errors: list[str] = []
     by_id = {chunk.id: chunk for chunk in chunks}
     for chunk in chunks:
-        if chunk.chunk_type == ChunkType.CHILD:
+        if chunk.chunk_type in (ChunkType.CHILD, ChunkType.TABLE):
             if not chunk.parent_id:
-                errors.append(f"{chunk.id}: child missing parent_id")
+                errors.append(f"{chunk.id}: {chunk.chunk_type} missing parent_id")
             elif chunk.parent_id not in by_id:
                 errors.append(f"{chunk.id}: parent_id {chunk.parent_id} not found")
             elif by_id[chunk.parent_id].chunk_type != ChunkType.PARENT:
@@ -108,11 +124,14 @@ def assess_filing(
             reasons.append(f"garbled section {section.item}")
 
     provenance_errors = validate_provenance(chunks)
-    token_errors = validate_child_token_sizes(chunks, settings)
+    token_errors, token_warnings = validate_child_token_sizes(chunks, settings)
     link_errors = validate_parent_child_links(chunks)
     reasons.extend(provenance_errors)
     reasons.extend(token_errors)
     reasons.extend(link_errors)
+
+    for warning in token_warnings:
+        logger.warning("[%s] %s", filing.ticker, warning)
 
     status = "quarantined" if reasons else "succeeded"
     parent_count = sum(1 for c in chunks if c.chunk_type == ChunkType.PARENT)
@@ -128,6 +147,7 @@ def assess_filing(
         accession_no=filing.accession_no,
         status=status,
         reason="; ".join(reasons) if reasons else None,
+        warnings=token_warnings,
         sections_found=found_items,
         sections_missing=missing,
         chunk_count=len(chunks),
@@ -178,10 +198,11 @@ def format_quality_summary(report: QualityReport) -> str:
         else:
             missing = filing.sections_missing
             missing_note = f" missing={missing}" if missing else ""
+            warn_note = f" warnings={len(filing.warnings)}" if filing.warnings else ""
             lines.append(
                 f"  OK {filing.ticker}: chunks={filing.chunk_count} "
                 f"(parents={filing.parent_count}, children={filing.child_count}, "
-                f"tables={filing.table_count}){missing_note}"
+                f"tables={filing.table_count}){missing_note}{warn_note}"
             )
     if missing_expected := [
         item for result in report.filings for item in result.sections_missing

@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     form_types: list[str] = Field(default_factory=lambda: ["10-K"])
     child_target_tokens: int = Field(default=400, ge=1)
     child_max_tokens: int = Field(default=500, ge=1)
+    child_hard_max_tokens: int = Field(default=800, ge=1)
     child_overlap_tokens: int = Field(default=0, ge=0, le=100)
     processed_dir: Path = Path("data/processed")
     sample_path: Path = Path("data/samples/chunks_sample.jsonl")

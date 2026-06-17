@@ -179,40 +179,16 @@ def chunk_sections(
     prefix = f"{filing.ticker}-{filing.accession_no}"
 
     for section in sections:
-        section_hint = section.section_char_start or 0
-
-        for table in section.tables:
-            table_id = _chunk_id(f"{prefix}-table-{table.table_id}")
-            char_start = table.char_start
-            char_end = table.char_end
-            if char_end <= char_start:
-                char_start, char_end = locate_span(
-                    filing.full_text, table.linearized, section_hint
-                )
-            records.append(
-                ChunkRecord(
-                    id=table_id,
-                    chunk_type=ChunkType.TABLE,
-                    text=table.linearized,
-                    parent_id=None,
-                    is_table=True,
-                    token_count=count_tokens(table.summary),
-                    summary=table.summary,
-                    table_data={
-                        "headers": table.headers,
-                        "rows": table.rows,
-                        "table_id": table.table_id,
-                    },
-                    provenance=_make_provenance(filing, section.item, char_start, char_end),
-                )
-            )
-
         prose = prose_without_tables(section)
-        if not prose:
+        if not prose and not section.tables:
             continue
 
+        section_hint = section.section_char_start or 0
         parent_id = _chunk_id(f"{prefix}-parent-{section.item.replace(' ', '')}")
-        parent_start, parent_end = locate_span(filing.full_text, prose, section_hint)
+        parent_start, parent_end = locate_span(filing.full_text, prose, section_hint) if prose else (
+            section_hint,
+            section_hint,
+        )
         if section.section_char_start is not None and section.section_char_end is not None:
             parent_start = section.section_char_start
             parent_end = section.section_char_end
@@ -228,6 +204,32 @@ def chunk_sections(
                 provenance=_make_provenance(filing, section.item, parent_start, parent_end),
             )
         )
+
+        for table in section.tables:
+            table_id = _chunk_id(f"{prefix}-table-{table.table_id}")
+            char_start = table.char_start
+            char_end = table.char_end
+            if char_end <= char_start:
+                char_start, char_end = locate_span(
+                    filing.full_text, table.linearized, section_hint
+                )
+            records.append(
+                ChunkRecord(
+                    id=table_id,
+                    chunk_type=ChunkType.TABLE,
+                    text=table.linearized,
+                    parent_id=parent_id,
+                    is_table=True,
+                    token_count=count_tokens(table.summary),
+                    summary=table.summary,
+                    table_data={
+                        "headers": table.headers,
+                        "rows": table.rows,
+                        "table_id": table.table_id,
+                    },
+                    provenance=_make_provenance(filing, section.item, char_start, char_end),
+                )
+            )
 
         for child_text, char_start, char_end in _child_chunks_from_prose(
             prose, settings, parent_start, filing.full_text
