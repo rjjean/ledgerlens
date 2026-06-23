@@ -24,19 +24,23 @@ Ship rule: a live URL + eval numbers for one finished project beats unfinished r
 - MVP corpus: 18 large-cap tech/software tickers (locked in `config.py`).
 - Full stack locked in `Ledgerlens_System_Design_FINAL.md` §6 — do not re-litigate.
 - ADR-0002 (chunking) accepted — structure-aware parent/child + intact tables.
+- MVP ingestion selects **original 10-K only** — 10-K/A amendments excluded until v1.
 
 ## Current state of the code
 
 **Phase 1 complete.** One-shot ingestion pipeline:
 
 - `ledgerlens/ingestion/` — `FilingSource` seam (`EdgarFilingSource` / `FakeFilingSource`),
-section extraction, parent/child/table chunking, full provenance, data-quality checks.
+  section extraction, parent/child/table chunking, full provenance, data-quality checks.
 - `scripts/ingest.py` — defaults to 3-ticker validate-first; `--all` for 18.
 - Output: `data/processed/chunks.jsonl` (gitignored) + committed `data/samples/chunks_sample.jsonl`.
 - Table chunks link to section parent via `parent_id`; soft token overflows warn, hard max quarantines.
+- Critical vs non-critical section QC: placeholder sections (e.g. Item 6 `[Reserved]`) dropped silently;
+  empty non-critical sections warn + drop; critical failures still quarantine.
+- `select_filing_candidate()` excludes 10-K/A; latest original 10-K per ticker.
 - Phase boundary held: no embedding, no database.
 
-Verified: 3-ticker live run (MSFT, SNOW, NVDA) — 3/3 succeeded, 904 chunks; `pytest` 18 passed;
+Verified: 3-ticker live run (MSFT, SNOW, NVDA) — 3/3 succeeded, 904 chunks; `pytest` 22+ passed;
 smoke test GREEN.
 
 ## Files currently being edited / in-flight
@@ -52,14 +56,18 @@ smoke test GREEN.
 ## What was tried that failed / dead-ends
 
 - **Soft-max token QC quarantined valid filings** — fixed: `child_max_tokens` is a warning;
-`child_hard_max_tokens` (800) quarantines only. MSFT/SNOW/NVDA were failing on borderline
-Item 8 paragraphs before the fix.
+  `child_hard_max_tokens` (800) quarantines only. MSFT/SNOW/NVDA were failing on borderline
+  Item 8 paragraphs before the fix.
 - **Tables had `parent_id: null`** — fixed: tables now reference their section parent for
-synthesis expansion and section-scoped retrieval in Phase 2+.
+  synthesis expansion and section-scoped retrieval in Phase 2+.
+- **CRM Item 6 `[Reserved]` quarantined whole filing** — fixed: critical vs non-critical
+  section gate; placeholders are legitimately empty.
+- **AMD partial 10-K/A selected over complete 10-K** — fixed: MVP excludes amendments from
+  candidate selection (`select_filing_candidate`). TODO(v1): partial-amendment detect + merge.
 
 ## Phase completion log
 
 - **Phase 0** — complete (2026-06-09). Scaffold + seams + ADR-0001; smoke test GREEN;
-pytest 4 passed; committed on `development` (`d868eea`).
+  pytest 4 passed; committed on `development` (`d868eea`).
 - **Phase 1** — complete (2026-06-13). Ingestion + chunking + ADR-0002; 3-ticker validation
-100%; pytest 18 passed; committed on `development` (`1c5068d` + follow-ups).
+  100%; pytest 18 passed; committed on `development` (`1c5068d` + follow-ups).

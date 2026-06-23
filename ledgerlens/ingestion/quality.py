@@ -17,6 +17,7 @@ from ledgerlens.ingestion.models import (
     Provenance,
     QualityReport,
     RawFiling,
+    RawSectionPayload,
 )
 from ledgerlens.ingestion.sections import missing_expected_items
 
@@ -24,6 +25,18 @@ logger = logging.getLogger(__name__)
 
 _GARBLED_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 _PROVENANCE_FIELDS = tuple(Provenance.model_fields.keys())
+
+
+def is_known_placeholder(text: str, settings: Settings) -> bool:
+    """True when section text is a filer placeholder (e.g. Item 6 [Reserved])."""
+    cleaned = text.strip()
+    if not cleaned:
+        return False
+    normalized = re.sub(r"\s+", " ", cleaned).lower()
+    for placeholder in settings.section_content_placeholders:
+        if normalized == placeholder.strip().lower():
+            return True
+    return False
 
 
 def is_garbled(text: str) -> bool:
@@ -110,18 +123,54 @@ def validate_parent_child_links(chunks: list[ChunkRecord]) -> list[str]:
     return errors
 
 
+def filter_filing_sections(
+    filing: RawFiling,
+    settings: Settings,
+) -> tuple[RawFiling, list[str], list[str]]:
+    """Drop bad non-critical sections; quarantine reasons for critical failures.
+
+    Returns (cleaned filing, warnings, quarantine reasons).
+    """
+    warnings: list[str] = []
+    quarantine_reasons: list[str] = []
+    kept: list[RawSectionPayload] = []
+    found_items = {section.item for section in filing.sections}
+    critical = set(settings.critical_sections)
+
+    for item in settings.critical_sections:
+        if item not in found_items:
+            quarantine_reasons.append(f"missing critical section {item}")
+
+    for section in filing.sections:
+        has_tables = bool(section.tables)
+        text = section.text or ""
+
+        if is_known_placeholder(text, settings) and not has_tables:
+            continue
+
+        if has_tables or (text.strip() and not is_garbled(text)):
+            kept.append(section)
+            continue
+
+        if section.item in critical:
+            quarantine_reasons.append(f"garbled or empty critical section {section.item}")
+        else:
+            warnings.append(f"dropped non-critical section {section.item}: garbled or empty")
+
+    cleaned = filing.model_copy(update={"sections": kept})
+    return cleaned, warnings, quarantine_reasons
+
+
 def assess_filing(
     filing: RawFiling,
     chunks: list[ChunkRecord],
     settings: Settings,
+    section_warnings: list[str] | None = None,
 ) -> FilingQualityResult:
     found_items = [section.item for section in filing.sections]
     missing = missing_expected_items(found_items)
     reasons: list[str] = []
-
-    for section in filing.sections:
-        if is_garbled(section.text):
-            reasons.append(f"garbled section {section.item}")
+    warnings: list[str] = list(section_warnings or [])
 
     provenance_errors = validate_provenance(chunks)
     token_errors, token_warnings = validate_child_token_sizes(chunks, settings)
@@ -129,8 +178,9 @@ def assess_filing(
     reasons.extend(provenance_errors)
     reasons.extend(token_errors)
     reasons.extend(link_errors)
+    warnings.extend(token_warnings)
 
-    for warning in token_warnings:
+    for warning in warnings:
         logger.warning("[%s] %s", filing.ticker, warning)
 
     status = "quarantined" if reasons else "succeeded"
@@ -147,7 +197,7 @@ def assess_filing(
         accession_no=filing.accession_no,
         status=status,
         reason="; ".join(reasons) if reasons else None,
-        warnings=token_warnings,
+        warnings=warnings,
         sections_found=found_items,
         sections_missing=missing,
         chunk_count=len(chunks),
