@@ -1,14 +1,14 @@
 ---
 type: handoff
 status: active
-phase: 2
-updated: 2026-06-13
+phase: 3
+updated: 2026-06-23
 related: ["[[index]]", "[[BUILD_PLAN]]", "[[PHASE_1_BUILD]]", "[[PHASE_0_BUILD]]", "[[PHASE_2_BUILD]]"]
 ---
 
 # Ledgerlens — Session Handoff
 
-*Last updated: 2026-06-13 — Phase 1 complete; starting Phase 2.*
+*Last updated: 2026-06-23 — Phase 2 complete; starting Phase 3.*
 *Update at the close of every build session.*
 
 ## Goal
@@ -28,30 +28,41 @@ Ship rule: a live URL + eval numbers for one finished project beats unfinished r
 
 ## Current state of the code
 
-**Phase 1 complete.** One-shot ingestion pipeline:
+**Phase 2 complete.** Storage + embedding pipeline (offline-validated):
 
-- `ledgerlens/ingestion/` — `FilingSource` seam (`EdgarFilingSource` / `FakeFilingSource`),
-  section extraction, parent/child/table chunking, full provenance, data-quality checks.
-- `scripts/ingest.py` — defaults to 3-ticker validate-first; `--all` for 18.
-- Output: `data/processed/chunks.jsonl` (gitignored) + committed `data/samples/chunks_sample.jsonl`.
-- Table chunks link to section parent via `parent_id`; soft token overflows warn, hard max quarantines.
-- Critical vs non-critical section QC: placeholder sections (e.g. Item 6 `[Reserved]`) dropped silently;
-  empty non-critical sections warn + drop; critical failures still quarantine.
-- `select_filing_candidate()` excludes 10-K/A; latest original 10-K per ticker.
-- Phase boundary held: no embedding, no database.
+- `ledgerlens/storage/` — `ChunkStore` seam (`PostgresChunkStore` / `FakeChunkStore`),
+  denormalized `chunks` table DDL (pgvector HNSW + GIN FTS), batched idempotent upsert.
+- `ledgerlens/storage/pipeline.py` — load jsonl → embed child + table targets → upsert
+  (parents with NULL embedding) → reconciliation gate → `storage_report.json`.
+- `scripts/embed_and_store.py` — mirrors `ingest.py` CLI (`--tickers` / `--all`;
+  default MSFT, SNOW, NVDA).
+- **Embed targets:** children + tables only; parents never embedded (ADR-0002 / Stage 5).
+- **Table embed text:** linearized `text` only — summaries excluded (auto-generated
+  summaries have wrong column counts and add vector noise).
+- **Upsert:** parents-first ordering; `executemany` batched by `embed_batch_size`;
+  `ON CONFLICT (id) DO UPDATE` for idempotent re-runs.
+- psycopg + pgvector imported only inside `ledgerlens/storage/postgres.py`.
+- Phase boundary held: no query path, no FTS/vector search, no RRF, no rerank.
 
-Verified: 3-ticker live run (MSFT, SNOW, NVDA) — 3/3 succeeded, 904 chunks; `pytest` 22+ passed;
-smoke test GREEN.
+Verified offline: `FakeEmbedder` + `FakeChunkStore` — reconciliation passes on fixture;
+upsert idempotent; Postgres integration test (opt-in, `DATABASE_URL`) verifies 1024-d
+vector round-trip and NULL parent embedding via `register_vector`. `pytest` 33 passed,
+1 skipped; smoke test GREEN. Committed on `development` (`91e191c`).
+
+**Operator step (not blocking Phase 3 kickoff):** first real Neon + Voyage run —
+`STORAGE_BACKEND=postgres`, `EMBEDDER_BACKEND=voyage` (spend cap set first). Expect
+~904 rows for the 3-ticker validate-first set when `chunks.jsonl` matches Phase 1 output.
 
 ## Files currently being edited / in-flight
 
 - None.
 
-## Next steps — Phase 2 (Storage + embeddings)
+## Next steps — Phase 3 (Retrieval)
 
-1. Neon schema (chunks, parents, metadata, pgvector + FTS).
-2. `voyage-finance-2` behind the `Embedder` seam — embed children + table summaries.
-3. Upsert into Neon; reconcile embedding count vs chunk count.
+1. Query embedding via `Embedder.embed_query()` (separate from document encoding).
+2. Hybrid retrieval: FTS + pgvector ANN + RRF (k=60).
+3. In-process MiniLM rerank behind `Reranker` seam.
+4. Informal recall check on ~10 hand questions; measure rerank uplift.
 
 ## What was tried that failed / dead-ends
 
@@ -59,11 +70,13 @@ smoke test GREEN.
   `child_hard_max_tokens` (800) quarantines only. MSFT/SNOW/NVDA were failing on borderline
   Item 8 paragraphs before the fix.
 - **Tables had `parent_id: null`** — fixed: tables now reference their section parent for
-  synthesis expansion and section-scoped retrieval in Phase 2+.
+  synthesis expansion and section-scoped retrieval in Phase 3+.
 - **CRM Item 6 `[Reserved]` quarantined whole filing** — fixed: critical vs non-critical
   section gate; placeholders are legitimately empty.
 - **AMD partial 10-K/A selected over complete 10-K** — fixed: MVP excludes amendments from
   candidate selection (`select_filing_candidate`). TODO(v1): partial-amendment detect + merge.
+- **Table summary prepended to embed text** — dropped: summaries have wrong column counts;
+  table embed target is linearized body only.
 
 ## Phase completion log
 
@@ -71,3 +84,5 @@ smoke test GREEN.
   pytest 4 passed; committed on `development` (`d868eea`).
 - **Phase 1** — complete (2026-06-13). Ingestion + chunking + ADR-0002; 3-ticker validation
   100%; pytest 18 passed; committed on `development` (`1c5068d` + follow-ups).
+- **Phase 2** — complete (2026-06-23). Storage seam + schema + embed/store pipeline +
+  reconciliation; offline green on fakes; committed on `development` (`91e191c`).

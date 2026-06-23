@@ -1,8 +1,8 @@
 ---
 type: index
 status: active
-phase: 2
-updated: 2026-06-13
+phase: 3
+updated: 2026-06-23
 related: ["[[handoff]]", "[[BUILD_PLAN]]", "[[PHASE_1_BUILD]]", "[[PHASE_2_BUILD]]"]
 ---
 
@@ -14,19 +14,19 @@ vault**, and a **Cursor workspace** (worked in Composer / Agent).
 
 > Ledgerlens: a citation-grounded RAG product over SEC filings with a published
 > evaluation harness. The flagship portfolio project.
-> **Status: Phase 1 complete (ingestion + chunking, validated). Phase 2 active.**
+> **Status: Phase 2 complete (storage + embeddings, offline-validated). Phase 3 active.**
 
 ## Start here
 - [[handoff]] — where the build is right now. **Read first every session.**
-- [[PHASE_2_BUILD]] — the active build task (storage + embeddings).
+- [[BUILD_PLAN]] — phase tracker; **Phase 3 (retrieval) is the active build task.**
 - [[GETTING_STARTED]] — setup + how to work in Cursor + Composer.
 - [[CONVENTIONS]] — how this vault/repo is organized and edited.
 
 ## Build
 - [[Ledgerlens_System_Design_FINAL]] — locked architecture + stack (authoritative).
-- [[BUILD_PLAN]] — phase tracker (MVP -> v1 -> v2); Phase 1 done, Phase 2 active.
+- [[BUILD_PLAN]] — phase tracker (MVP -> v1 -> v2); Phase 2 done, Phase 3 active.
 - [[01_Ledgerlens_Project_Outline]] — the why / scope / direction.
-- Build briefs: [[PHASE_0_BUILD]] (done) · [[PHASE_1_BUILD]] (done).
+- Build briefs: [[PHASE_0_BUILD]] (done) · [[PHASE_1_BUILD]] (done) · [[PHASE_2_BUILD]] (done).
 - Decision records: [[0000-adr-template]] · [[0001-single-postgres-over-dedicated-vector-db]] · [[0002-chunking-strategy-for-SEC-filings]] (accepted).
 
 > The AI guardrails Cursor follows live in `.cursor/rules/` (`00-project` always on;
@@ -42,5 +42,5 @@ convert the lines below to wiki-links.)*
   merchant matching), AskWarehouse (agentic text-to-SQL copilot).
 
 ## Current focus
-**Phase 2 — storage + embeddings.** Embed children + table summaries with
-`voyage-finance-2`, upsert into Neon (pgvector + FTS). See [[handoff]] and [[BUILD_PLAN]].
+**Phase 3 — retrieval.** Hybrid FTS + pgvector + RRF (k=60) + MiniLM rerank behind
+the existing seams. See [[handoff]] and [[BUILD_PLAN]].

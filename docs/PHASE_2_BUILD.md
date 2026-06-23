@@ -1,12 +1,14 @@
 ---
 type: plan
-status: active
+status: accepted
 phase: 2
-updated: 2026-06-13
+updated: 2026-06-23
 related: ["[[handoff]]", "[[BUILD_PLAN]]", "[[PHASE_1_BUILD]]", "[[Ledgerlens_System_Design_FINAL]]"]
 ---
 
 # Phase 2 Build Brief — Storage & Embeddings
+
+*Complete (2026-06-23). See [[handoff]] for live state.*
 
 Kick off in Composer with:
 

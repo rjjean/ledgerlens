@@ -38,19 +38,15 @@ differentiators.
 ~15-20 large-cap tech/software filings. Financials expansion is a v1 narrative beat.
 
 ## Current phase
-Phase 2 — Storage & embeddings (active). Phases 0 (scaffold + seams) and 1
-(ingestion + chunking, 3-ticker validated, 904 chunks) are complete. Build Phase 2 per
-docs/PHASE_2_BUILD.md and the design doc (Stage 4 storage, Stage 6 embeddings).
+Phase 3 — Retrieval (active). Phases 0–2 are complete. Build Phase 3 per
+`docs/BUILD_PLAN.md` and the design doc (Stage 5 retrieval).
 
-Scope this phase: apply the Neon schema (flattened-provenance chunks table, HNSW +
-GIN indexes), embed children + table summaries through the existing Embedder seam
-(voyage-finance-2), upsert idempotently, and reconcile embedded-count vs chunk-count.
-Do NOT build retrieval (no query path / RRF / rerank — that's Phase 3). psycopg is
-imported only inside ledgerlens/storage/. Keep EMBEDDER_BACKEND=fake until the
-pipeline is green on fakes; set the Voyage spend cap before the first real run.
+Scope: hybrid FTS + pgvector ANN + RRF (k=60) + MiniLM rerank behind existing seams.
+Query embedding via `Embedder.embed_query()` (document encoding is Phase 2). Storage
+and embedding go through `get_chunk_store()` and `get_embedder()` — psycopg stays inside
+`ledgerlens/storage/`. Do NOT build synthesis or the API surface yet (Phases 4–5).
 
-ADRs are authored by hand by Ryan (the ADR-0002 pattern). The storage decision is
-already recorded in ADR-0001 — do not re-litigate it. If a schema-normalization call
+ADRs are authored by hand by Ryan (the ADR-0002 pattern). If a retrieval design call
 feels decision-grade, flag it for Ryan; the agent does not draft the ADR.
 
 See handoff.md for live state.
