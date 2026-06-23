@@ -14,13 +14,14 @@ from ledgerlens.ingestion.sections import (
     clean_text,
     parse_linearized_table,
 )
+from ledgerlens.ingestion.quality import dedupe_candidates
 
 logger = logging.getLogger(__name__)
 
 # SEC fair-access: stay well under 10 req/s (~6–7 req/s).
 EDGAR_REQUEST_INTERVAL_SEC: float = 0.15
 
-_AMENDMENT_FORMS = {"10-K/A", "10-K"}
+# TODO(v1): detect partial vs full 10-K/A and merge amended sections into the corpus.
 
 
 class FilingSource(ABC):
@@ -64,8 +65,7 @@ class EdgarFilingSource(FilingSource):
 
         self._throttle()
         company = Company(ticker)
-        forms = set(form_types) | _AMENDMENT_FORMS
-        filings = company.get_filings(form=list(forms))
+        filings = company.get_filings(form=list(form_types))
         candidates: list[FilingCandidate] = []
         for filing in filings:
             fiscal_period = _fiscal_period_from_filing(filing)
@@ -105,34 +105,44 @@ class FakeFilingSource(FilingSource):
         self._fixture = json.loads(settings.fixture_path.read_text(encoding="utf-8"))
 
     def list_candidates(self, ticker: str, form_types: list[str]) -> list[FilingCandidate]:
-        data = self._fixture if self._fixture.get("ticker", "").upper() == ticker.upper() else None
-        if data is None:
+        if self._fixture.get("ticker", "").upper() != ticker.upper():
             return []
-        return [
-            FilingCandidate(
-                ticker=data["ticker"],
-                company=data["company"],
-                cik=data["cik"],
-                form_type=data["form_type"],
-                fiscal_period=data["fiscal_period"],
-                filing_date=data["filing_date"],
-                accession_no=data["accession_no"],
-                source_url=data["source_url"],
-            )
-        ]
+        allowed_forms = {form.upper() for form in form_types}
+        if "candidates" in self._fixture:
+            return [
+                FilingCandidate.model_validate(item)
+                for item in self._fixture["candidates"]
+                if item["form_type"].upper() in allowed_forms
+            ]
+        candidate = FilingCandidate(
+            ticker=self._fixture["ticker"],
+            company=self._fixture["company"],
+            cik=self._fixture["cik"],
+            form_type=self._fixture["form_type"],
+            fiscal_period=self._fixture["fiscal_period"],
+            filing_date=self._fixture["filing_date"],
+            accession_no=self._fixture["accession_no"],
+            source_url=self._fixture["source_url"],
+        )
+        if candidate.form_type.upper() not in allowed_forms:
+            return []
+        return [candidate]
 
     def fetch_filing(self, candidate: FilingCandidate) -> RawFiling:
-        data = self._fixture
+        if "filings" in self._fixture:
+            data = self._fixture["filings"][candidate.accession_no]
+        else:
+            data = self._fixture
         sections = [RawSectionPayload.model_validate(section) for section in data["sections"]]
         return RawFiling(
-            ticker=data["ticker"],
-            company=data["company"],
-            cik=data["cik"],
-            form_type=data["form_type"],
-            fiscal_period=data["fiscal_period"],
-            filing_date=data["filing_date"],
-            accession_no=data["accession_no"],
-            source_url=data["source_url"],
+            ticker=candidate.ticker,
+            company=candidate.company,
+            cik=candidate.cik,
+            form_type=candidate.form_type,
+            fiscal_period=candidate.fiscal_period,
+            filing_date=candidate.filing_date,
+            accession_no=candidate.accession_no,
+            source_url=candidate.source_url,
             full_text=data["full_text"],
             sections=sections,
         )
@@ -262,4 +272,18 @@ def _locate_in_document(full_text: str, needle: str, hint_start: int) -> tuple[i
     if pos < 0:
         pos = max(0, hint_start)
     return pos, pos + len(needle)
+
+
+def filter_original_form_candidates(candidates: list[FilingCandidate]) -> list[FilingCandidate]:
+    """MVP: exclude amendments (e.g. 10-K/A). Partial-amendment merge is v1."""
+    return [candidate for candidate in candidates if not candidate.form_type.upper().endswith("/A")]
+
+
+def select_filing_candidate(candidates: list[FilingCandidate]) -> FilingCandidate | None:
+    """Pick the latest original filing for a ticker (MVP — no 10-K/A)."""
+    originals = filter_original_form_candidates(candidates)
+    if not originals:
+        return None
+    selected = dedupe_candidates(originals)
+    return selected[0] if selected else None
 

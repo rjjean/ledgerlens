@@ -1,0 +1,85 @@
+{
+  "ticker": "AMD",
+  "candidates": [
+    {
+      "ticker": "AMD",
+      "company": "Advanced Micro Devices Inc.",
+      "cik": "0000002488",
+      "form_type": "10-K/A",
+      "fiscal_period": "2024-12-28",
+      "filing_date": "2026-02-15",
+      "accession_no": "0000002488-26-000021",
+      "source_url": "https://example.com/amendment"
+    },
+    {
+      "ticker": "AMD",
+      "company": "Advanced Micro Devices Inc.",
+      "cik": "0000002488",
+      "form_type": "10-K",
+      "fiscal_period": "2024-12-28",
+      "filing_date": "2025-02-01",
+      "accession_no": "0000002488-25-000010",
+      "source_url": "https://example.com/original"
+    }
+  ],
+  "filings": {
+    "0000002488-26-000021": {
+      "full_text": "ITEM 7\n\nAmended MD&A paragraph only.",
+      "sections": [
+        {
+          "item": "Item 7",
+          "title": "MD&A",
+          "text": "Amended MD&A paragraph only.",
+          "tables": [],
+          "section_char_start": 0,
+          "section_char_end": 40
+        }
+      ]
+    },
+    "0000002488-25-000010": {
+      "full_text": "ITEM 1\n\nAMD designs high-performance computing and graphics products.\n\nITEM 1A\n\nMarket competition and supply chain constraints may affect results.\n\nITEM 7\n\nRevenue increased year over year driven by data center demand.\n\nITEM 7A\n\nWe face interest rate and currency exchange risks.\n\nITEM 8\n\nConsolidated financial statements are presented below.",
+      "sections": [
+        {
+          "item": "Item 1",
+          "title": "Business",
+          "text": "AMD designs high-performance computing and graphics products.",
+          "tables": [],
+          "section_char_start": 0,
+          "section_char_end": 70
+        },
+        {
+          "item": "Item 1A",
+          "title": "Risk Factors",
+          "text": "Market competition and supply chain constraints may affect results.",
+          "tables": [],
+          "section_char_start": 72,
+          "section_char_end": 150
+        },
+        {
+          "item": "Item 7",
+          "title": "MD&A",
+          "text": "Revenue increased year over year driven by data center demand.",
+          "tables": [],
+          "section_char_start": 152,
+          "section_char_end": 230
+        },
+        {
+          "item": "Item 7A",
+          "title": "Market Risk",
+          "text": "We face interest rate and currency exchange risks.",
+          "tables": [],
+          "section_char_start": 232,
+          "section_char_end": 300
+        },
+        {
+          "item": "Item 8",
+          "title": "Financial Statements",
+          "text": "Consolidated financial statements are presented below.",
+          "tables": [],
+          "section_char_start": 302,
+          "section_char_end": 360
+        }
+      ]
+    }
+  }
+}

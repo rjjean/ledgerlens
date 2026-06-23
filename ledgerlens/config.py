@@ -29,6 +29,15 @@ MVP_TICKERS: list[str] = [
 
 VALIDATE_FIRST_TICKERS: list[str] = ["MSFT", "SNOW", "NVDA"]
 
+CRITICAL_10K_SECTIONS: list[str] = ["Item 1", "Item 1A", "Item 7", "Item 7A", "Item 8"]
+
+DEFAULT_SECTION_CONTENT_PLACEHOLDERS: list[str] = [
+    "[Reserved]",
+    "Reserved",
+    "Not applicable",
+    "Not Applicable",
+]
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -66,6 +75,10 @@ class Settings(BaseSettings):
     child_max_tokens: int = Field(default=500, ge=1)
     child_hard_max_tokens: int = Field(default=800, ge=1)
     child_overlap_tokens: int = Field(default=0, ge=0, le=100)
+    critical_sections: list[str] = Field(default_factory=lambda: list(CRITICAL_10K_SECTIONS))
+    section_content_placeholders: list[str] = Field(
+        default_factory=lambda: list(DEFAULT_SECTION_CONTENT_PLACEHOLDERS)
+    )
     processed_dir: Path = Path("data/processed")
     sample_path: Path = Path("data/samples/chunks_sample.jsonl")
     fixture_path: Path = Path("data/fixtures/fake_filing.json")

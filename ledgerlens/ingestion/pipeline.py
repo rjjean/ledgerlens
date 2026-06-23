@@ -12,12 +12,12 @@ from ledgerlens.ingestion.models import ChunkRecord, FilingQualityResult, Qualit
 from ledgerlens.ingestion.quality import (
     assess_filing,
     build_quality_report,
-    dedupe_candidates,
+    filter_filing_sections,
     format_quality_summary,
     write_quality_report,
 )
 from ledgerlens.ingestion.sections import payloads_to_sections
-from ledgerlens.ingestion.sources import FilingSource, get_filing_source
+from ledgerlens.ingestion.sources import FilingSource, get_filing_source, select_filing_candidate
 
 logger = logging.getLogger(__name__)
 
@@ -38,16 +38,15 @@ def process_ticker(
             reason="no filings found",
         )
 
-    selected = dedupe_candidates(candidates)
-    if not selected:
+    candidate = select_filing_candidate(candidates)
+    if candidate is None:
         return [], FilingQualityResult(
             ticker=ticker,
             accession_no="",
             status="quarantined",
-            reason="dedup produced no filing",
+            reason="no original 10-K found (amendments excluded for MVP)",
         )
 
-    candidate = selected[0]
     logger.info(
         "Processing %s: %s %s (period=%s, filed=%s)",
         ticker,
@@ -68,9 +67,22 @@ def process_ticker(
             reason=f"fetch failed: {exc}",
         )
 
+    raw_filing, section_warnings, section_errors = filter_filing_sections(raw_filing, settings)
+    if section_errors:
+        for reason in section_errors:
+            logger.warning("[%s] %s", ticker, reason)
+        return [], FilingQualityResult(
+            ticker=ticker,
+            accession_no=raw_filing.accession_no,
+            status="quarantined",
+            reason="; ".join(section_errors),
+            warnings=section_warnings,
+            sections_found=[section.item for section in raw_filing.sections],
+        )
+
     sections = payloads_to_sections(raw_filing.sections)
     chunks = chunk_sections(raw_filing, sections, settings)
-    result = assess_filing(raw_filing, chunks, settings)
+    result = assess_filing(raw_filing, chunks, settings, section_warnings=section_warnings)
 
     if result.status == "quarantined":
         return [], result

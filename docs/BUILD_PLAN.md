@@ -3,7 +3,7 @@ type: plan
 status: active
 phase: 2
 updated: 2026-06-13
-related: ["[[handoff]]", "[[PHASE_0_BUILD]]", "[[PHASE_1_BUILD]]", "[[Ledgerlens_System_Design_FINAL]]"]
+related: ["[[handoff]]", "[[PHASE_0_BUILD]]", "[[PHASE_1_BUILD]]", "[[PHASE_2_BUILD]]", "[[Ledgerlens_System_Design_FINAL]]"]
 ---
 
 # Build Plan & Phase Tracker
@@ -23,6 +23,7 @@ unfinished repos. Build narrow, finish, then iterate.
       *(2026-06-13 — complete.)*
 - [ ] **Phase 2 — Storage + embeddings.** Neon schema, voyage-finance-2 behind the
       Embedder seam, HNSW + FTS indexes, embedding/chunk count reconciles.
+      Build per `docs/PHASE_2_BUILD.md`.
 - [ ] **Phase 3 — Retrieval.** FTS + pgvector + RRF (k=60) + MiniLM rerank. Informal
       recall check on ~10 hand questions. Validate rerank uplift.
 - [ ] **Phase 4 — Synthesis + citations.** Thin custom RAG core, Haiku 4.5 via LiteLLM,

@@ -9,15 +9,27 @@ from pathlib import Path
 import pytest
 
 from ledgerlens.config import Settings
-from ledgerlens.ingestion.models import ChunkType, FilingCandidate
+from ledgerlens.ingestion.models import ChunkRecord, ChunkType, FilingCandidate, Provenance
 from ledgerlens.ingestion.pipeline import process_ticker, run_ingestion, write_sample
-from ledgerlens.ingestion.models import ChunkRecord, ChunkType, Provenance
 from ledgerlens.ingestion.quality import (
     dedupe_candidates,
     validate_child_token_sizes,
     validate_provenance,
 )
-from ledgerlens.ingestion.sources import FakeFilingSource, get_filing_source
+from ledgerlens.ingestion.sources import FakeFilingSource, get_filing_source, select_filing_candidate
+
+
+def _write_fixture(tmp_path: Path, sections: list[dict]) -> Path:
+    base = json.loads(Path("data/fixtures/fake_filing.json").resolve().read_text(encoding="utf-8"))
+    base["sections"] = sections
+    path = tmp_path / "filing.json"
+    path.write_text(json.dumps(base), encoding="utf-8")
+    return path
+
+
+def _base_sections() -> list[dict]:
+    data = json.loads(Path("data/fixtures/fake_filing.json").resolve().read_text(encoding="utf-8"))
+    return list(data["sections"])
 
 
 @pytest.fixture
@@ -124,7 +136,33 @@ def test_child_token_hard_max_quarantines(fake_settings: Settings):
     assert not warnings
 
 
-def test_dedup_prefers_amendment_by_filing_date():
+def test_select_filing_excludes_amendment_for_mvp():
+    base = dict(
+        ticker="AMD",
+        company="Advanced Micro Devices Inc.",
+        cik="0000002488",
+        fiscal_period="2024-12-28",
+        source_url="https://example.com",
+    )
+    original = FilingCandidate(
+        **base,
+        form_type="10-K",
+        filing_date="2025-02-01",
+        accession_no="0000002488-25-000010",
+    )
+    partial_amendment = FilingCandidate(
+        **base,
+        form_type="10-K/A",
+        filing_date="2026-02-15",
+        accession_no="0000002488-26-000021",
+    )
+    chosen = select_filing_candidate([partial_amendment, original])
+    assert chosen is not None
+    assert chosen.form_type == "10-K"
+    assert chosen.accession_no == original.accession_no
+
+
+def test_dedup_keeps_latest_original_per_period():
     base = dict(
         ticker="FAKE",
         company="Fake Tech Inc.",
@@ -138,26 +176,40 @@ def test_dedup_prefers_amendment_by_filing_date():
         filing_date="2025-02-01",
         accession_no="0001234567-25-000001",
     )
-    amendment = FilingCandidate(
-        **base,
-        form_type="10-K/A",
-        filing_date="2025-03-15",
-        accession_no="0001234567-25-000002",
-    )
     older_period = FilingCandidate(
         ticker=base["ticker"],
         company=base["company"],
         cik=base["cik"],
         fiscal_period="2023-12-31",
         source_url=base["source_url"],
-        form_type="10-K/A",
+        form_type="10-K",
         filing_date="2025-04-01",
         accession_no="0001234567-24-000099",
     )
-    selected = dedupe_candidates([original, amendment, older_period])
+    selected = dedupe_candidates([original, older_period])
     assert len(selected) == 1
-    assert selected[0].accession_no == amendment.accession_no
-    assert selected[0].form_type == "10-K/A"
+    assert selected[0].accession_no == original.accession_no
+    assert selected[0].form_type == "10-K"
+
+
+def test_ingestion_selects_complete_10k_over_partial_amendment(fake_settings: Settings):
+    fixture = Path("data/fixtures/fake_amd_10k_vs_amendment.json").resolve()
+    settings = fake_settings.model_copy(update={"fixture_path": fixture})
+    source = FakeFilingSource(settings)
+
+    candidates = source.list_candidates("AMD", ["10-K"])
+    chosen = select_filing_candidate(candidates)
+    assert chosen is not None
+    assert chosen.form_type == "10-K"
+    assert chosen.accession_no == "0000002488-25-000010"
+
+    chunks, result = process_ticker("AMD", source, settings)
+    assert result.status == "succeeded"
+    assert chunks
+    sections = {chunk.provenance.section for chunk in chunks}
+    assert "Item 1" in sections
+    assert "Item 1A" in sections
+    assert "Item 7A" in sections
 
 
 def test_run_ingestion_writes_outputs(fake_settings: Settings, monkeypatch: pytest.MonkeyPatch):
@@ -190,3 +242,66 @@ def test_write_sample_committed_file(fake_settings: Settings):
     write_sample(chunks, sample_path, limit=20)
     assert sample_path.exists()
     assert len(sample_path.read_text(encoding="utf-8").strip().splitlines()) <= 20
+
+
+def test_non_critical_placeholder_section_keeps_filing(tmp_path: Path, fake_settings: Settings):
+    sections = _base_sections() + [
+        {
+            "item": "Item 6",
+            "title": "Selected Financial Data",
+            "text": "[Reserved]",
+            "tables": [],
+            "section_char_start": 0,
+            "section_char_end": 10,
+        }
+    ]
+    settings = fake_settings.model_copy(
+        update={"fixture_path": _write_fixture(tmp_path, sections)}
+    )
+    source = FakeFilingSource(settings)
+    chunks, result = process_ticker("FAKE", source, settings)
+
+    assert result.status == "succeeded"
+    assert chunks
+    assert not any(w for w in result.warnings if "Item 6" in w)
+    assert "Item 6" not in {chunk.provenance.section for chunk in chunks}
+
+
+def test_non_critical_empty_section_warns_not_quarantines(tmp_path: Path, fake_settings: Settings):
+    sections = _base_sections() + [
+        {
+            "item": "Item 5",
+            "title": "Market for Registrant's Common Equity",
+            "text": "",
+            "tables": [],
+            "section_char_start": 0,
+            "section_char_end": 0,
+        }
+    ]
+    settings = fake_settings.model_copy(
+        update={"fixture_path": _write_fixture(tmp_path, sections)}
+    )
+    source = FakeFilingSource(settings)
+    chunks, result = process_ticker("FAKE", source, settings)
+
+    assert result.status == "succeeded"
+    assert chunks
+    assert any("Item 5" in warning for warning in result.warnings)
+    assert "Item 5" not in {chunk.provenance.section for chunk in chunks}
+
+
+def test_critical_garbled_section_quarantines_filing(tmp_path: Path, fake_settings: Settings):
+    sections = _base_sections()
+    for section in sections:
+        if section["item"] == "Item 1":
+            section["text"] = ""
+    settings = fake_settings.model_copy(
+        update={"fixture_path": _write_fixture(tmp_path, sections)}
+    )
+    source = FakeFilingSource(settings)
+    chunks, result = process_ticker("FAKE", source, settings)
+
+    assert result.status == "quarantined"
+    assert not chunks
+    assert result.reason is not None
+    assert "Item 1" in result.reason
