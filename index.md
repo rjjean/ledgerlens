@@ -14,7 +14,7 @@ vault**, and a **Cursor workspace** (worked in Composer / Agent).
 
 > Ledgerlens: a citation-grounded RAG product over SEC filings with a published
 > evaluation harness. The flagship portfolio project.
-> **Status: Phase 2 complete (storage + embeddings, offline-validated). Phase 3 active.**
+> **Status: Phase 2 complete (storage + embeddings; full 18-ticker corpus embedded and reconciled in Neon). Phase 3 active.**
 
 ## Start here
 - [[handoff]] — where the build is right now. **Read first every session.**

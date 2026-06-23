@@ -25,7 +25,9 @@ unfinished repos. Build narrow, finish, then iterate.
       Embedder seam, HNSW + FTS indexes, embedding/chunk count reconciles.
       Build per `docs/PHASE_2_BUILD.md`.
       *Done-when:* offline pipeline green on fakes; idempotent upsert; reconciliation
-      gate; pytest offline. *(2026-06-23 — complete.)*
+      gate; pytest offline; full 18-ticker corpus embedded via voyage-finance-2 and
+      reconciled in Neon (5780 rows / 5368 embedded / 412 parents).
+      *(2026-06-23 — complete.)*
 - [ ] **Phase 3 — Retrieval.** FTS + pgvector + RRF (k=60) + MiniLM rerank. Informal
       recall check on ~10 hand questions. Validate rerank uplift.
 - [ ] **Phase 4 — Synthesis + citations.** Thin custom RAG core, Haiku 4.5 via LiteLLM,

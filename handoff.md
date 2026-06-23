@@ -28,7 +28,8 @@ Ship rule: a live URL + eval numbers for one finished project beats unfinished r
 
 ## Current state of the code
 
-**Phase 2 complete.** Storage + embedding pipeline (offline-validated):
+**Phase 2 complete.** Storage + embedding pipeline (offline-green on fakes; full
+18-ticker corpus embedded and reconciled live in Neon):
 
 - `ledgerlens/storage/` — `ChunkStore` seam (`PostgresChunkStore` / `FakeChunkStore`),
   denormalized `chunks` table DDL (pgvector HNSW + GIN FTS), batched idempotent upsert.
@@ -49,9 +50,12 @@ upsert idempotent; Postgres integration test (opt-in, `DATABASE_URL`) verifies 1
 vector round-trip and NULL parent embedding via `register_vector`. `pytest` 33 passed,
 1 skipped; smoke test GREEN. Committed on `development` (`91e191c`).
 
-**Operator step (not blocking Phase 3 kickoff):** first real Neon + Voyage run —
-`STORAGE_BACKEND=postgres`, `EMBEDDER_BACKEND=voyage` (spend cap set first). Expect
-~904 rows for the 3-ticker validate-first set when `chunks.jsonl` matches Phase 1 output.
+**Real run — complete.** Full 18-ticker embed reconciled in Neon (prerequisite for
+Phase 3 retrieval — hybrid search queries these embeddings). Reconciliation PASSED:
+`total_chunks=5780`, `rows=5780`, `embedded=5368` (children 3576 + tables 1792),
+`parents=412` (0 embedded), `by_type={child: 3576, parent: 412, table: 1792}`.
+Ran with `STORAGE_BACKEND=postgres`, `EMBEDDER_BACKEND=voyage` (`voyage-finance-2`);
+Voyage spend cap set beforehand.
 
 ## Files currently being edited / in-flight
 
