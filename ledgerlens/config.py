@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     reranker_backend: str = "fake"
     llm_backend: str = "fake"
     filing_source: str = "edgar"
+    storage_backend: str = "postgres"
 
     # Locked model IDs (design doc §6)
     embedder_model: str = "voyage-finance-2"
@@ -66,6 +67,12 @@ class Settings(BaseSettings):
     voyage_api_key: str | None = None
 
     max_output_tokens: int = Field(default=1024, ge=1)
+
+    # Phase 2 — storage & embeddings
+    embed_batch_size: int = Field(default=128, ge=1)
+    hnsw_m: int = Field(default=16, ge=1)
+    hnsw_ef_construction: int = Field(default=64, ge=1)
+    fts_language: str = "english"
 
     # Phase 1 — ingestion & chunking
     tickers: list[str] = Field(default_factory=lambda: list(MVP_TICKERS))
@@ -90,6 +97,10 @@ class Settings(BaseSettings):
     @property
     def quality_report_path(self) -> Path:
         return self.processed_dir / "quality_report.json"
+
+    @property
+    def storage_report_path(self) -> Path:
+        return self.processed_dir / "storage_report.json"
 
 
 @lru_cache

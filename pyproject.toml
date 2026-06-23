@@ -16,6 +16,7 @@ dependencies = [
 [project.optional-dependencies]
 storage = [
     "psycopg[binary]>=3.1",
+    "pgvector>=0.3",
 ]
 embeddings = [
     "voyageai>=0.3",
