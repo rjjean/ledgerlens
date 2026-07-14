@@ -9,11 +9,19 @@ from typing import Any
 
 from ledgerlens.config import Settings, get_settings
 from ledgerlens.ingestion.models import ChunkRecord, ChunkType
-from ledgerlens.storage.store import ChunkStore
+from ledgerlens.retrieval.models import ScoredChunk
+from ledgerlens.storage.row_mapper import chunk_record_from_row
+from ledgerlens.storage.store import ChunkStore, validate_filters
 
 logger = logging.getLogger(__name__)
 
 _SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
+
+_CHUNK_COLUMNS = """
+    id, chunk_type, text, parent_id, is_table, token_count, summary, table_data,
+    company, ticker, cik, form_type, fiscal_period, section,
+    accession_no, source_url, char_start, char_end
+"""
 
 _UPSERT_SQL = """
 INSERT INTO chunks (
@@ -87,6 +95,20 @@ def _params_from_record(
     }
 
 
+def _filter_sql(filters: dict[str, str]) -> tuple[str, dict[str, Any]]:
+    if not filters:
+        return "", {}
+    clauses = [f"{key} = %({key})s" for key in filters]
+    return " AND " + " AND ".join(clauses), dict(filters)
+
+
+def _row_dict_from_tuple(columns: list[str], values: tuple[Any, ...]) -> dict[str, Any]:
+    row = dict(zip(columns, values, strict=True))
+    if isinstance(row.get("table_data"), str):
+        row["table_data"] = json.loads(row["table_data"])
+    return row
+
+
 class PostgresChunkStore(ChunkStore):
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
@@ -100,10 +122,18 @@ class PostgresChunkStore(ChunkStore):
         import psycopg  # noqa: PLC0415
         from pgvector.psycopg import register_vector  # noqa: PLC0415
 
+        # register_vector must run on every connection — including the read path
+        # used by search_dense / search_fts / _fetch_scored — so <=> adapts correctly.
         conn = psycopg.connect(self._settings.database_url)
         register_vector(conn)
         return conn
 
+    @staticmethod
+    def _vector_param(values: list[float]):
+        """Wrap as pgvector.Vector so the registered adapter dumps a vector, not float[]."""
+        from pgvector import Vector  # noqa: PLC0415
+
+        return Vector(values)
     def init_schema(self) -> None:
         ddl = render_schema_sql(self._settings)
         with self._connect() as conn:
@@ -167,6 +197,129 @@ class PostgresChunkStore(ChunkStore):
                     (ChunkType.PARENT,),
                 )
                 return int(cur.fetchone()[0])
+
+    def clear(self) -> None:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                # DELETE (not TRUNCATE): self-referential parent_id FK is fine.
+                cur.execute("DELETE FROM chunks")
+            conn.commit()
+        logger.info("Cleared all rows from chunks table")
+
+    def search_dense(
+        self,
+        query_embedding: list[float],
+        k: int,
+        filters: dict[str, str] | None = None,
+    ) -> list[ScoredChunk]:
+        filters = validate_filters(filters)
+        filter_sql, filter_params = _filter_sql(filters)
+        # Explicit ::vector cast: inserts coerce into a typed column, but the <=>
+        # operator has no such target — a bare float[] param raises
+        # "operator does not exist: vector <=> double precision[]".
+        sql = f"""
+            SELECT {_CHUNK_COLUMNS},
+                   (embedding <=> %(query_vec)s::vector) AS score
+            FROM chunks
+            WHERE embedding IS NOT NULL
+              AND chunk_type IN ('child', 'table')
+              {filter_sql}
+            ORDER BY embedding <=> %(query_vec)s::vector
+            LIMIT %(k)s
+        """
+        params: dict[str, Any] = {
+            "query_vec": self._vector_param(query_embedding),
+            "k": k,
+            **filter_params,
+        }
+        return self._fetch_scored(sql, params)
+
+    def search_fts(
+        self,
+        query_text: str,
+        k: int,
+        filters: dict[str, str] | None = None,
+    ) -> list[ScoredChunk]:
+        filters = validate_filters(filters)
+        filter_sql, filter_params = _filter_sql(filters)
+        # OR over stemmed lexemes — websearch_to_tsquery AND-joins every term, so
+        # NL questions like "What are NVIDIA's principal risk factors?" match nothing.
+        # Lexemes come from to_tsvector so stopwords are dropped and stemming matches
+        # the stored fts column.
+        sql = f"""
+            WITH query_ts AS (
+                SELECT CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM unnest(
+                            to_tsvector(%(fts_language)s, %(query_text)s)
+                        ) AS t(lexeme, positions)
+                    )
+                    THEN to_tsquery(
+                        %(fts_language)s,
+                        (
+                            SELECT string_agg(lexeme, ' | ')
+                            FROM (
+                                SELECT DISTINCT lexeme
+                                FROM unnest(
+                                    to_tsvector(%(fts_language)s, %(query_text)s)
+                                ) AS t(lexeme, positions)
+                            ) distinct_lexemes
+                        )
+                    )
+                    ELSE NULL
+                END AS tsq
+            )
+            SELECT {_CHUNK_COLUMNS},
+                   ts_rank(chunks.fts, query_ts.tsq) AS score
+            FROM chunks
+            CROSS JOIN query_ts
+            WHERE query_ts.tsq IS NOT NULL
+              AND chunks.fts @@ query_ts.tsq
+              AND chunks.embedding IS NOT NULL
+              {filter_sql}
+            ORDER BY score DESC
+            LIMIT %(k)s
+        """
+        params: dict[str, Any] = {
+            "query_text": query_text,
+            "fts_language": self._settings.fts_language,
+            "k": k,
+            **filter_params,
+        }
+        return self._fetch_scored(sql, params)
+
+    def fetch_parent(self, parent_id: str) -> ChunkRecord | None:
+        sql = f"""
+            SELECT {_CHUNK_COLUMNS}
+            FROM chunks
+            WHERE id = %(parent_id)s AND chunk_type = %(chunk_type)s
+        """
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    sql,
+                    {"parent_id": parent_id, "chunk_type": ChunkType.PARENT.value},
+                )
+                row = cur.fetchone()
+                if row is None:
+                    return None
+                columns = [desc.name for desc in cur.description]
+                return chunk_record_from_row(_row_dict_from_tuple(columns, row))
+
+    def _fetch_scored(self, sql: str, params: dict[str, Any]) -> list[ScoredChunk]:
+        with self._connect() as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql, params)
+                rows = cur.fetchall()
+                columns = [desc.name for desc in cur.description]
+
+        results: list[ScoredChunk] = []
+        for values in rows:
+            row = _row_dict_from_tuple(columns, values)
+            score = float(row.pop("score"))
+            results.append(ScoredChunk(chunk=chunk_record_from_row(row), score=score))
+        return results
 
 
 def _split_sql(ddl: str) -> list[str]:

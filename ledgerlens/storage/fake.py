@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+import math
+import re
 from typing import Any
 
 from ledgerlens.config import Settings
 from ledgerlens.ingestion.models import ChunkRecord, ChunkType
-from ledgerlens.storage.store import ChunkStore
+from ledgerlens.retrieval.models import ScoredChunk
+from ledgerlens.storage.row_mapper import chunk_record_from_row
+from ledgerlens.storage.store import ChunkStore, row_matches_filters, validate_filters
 
 
 def _row_from_record(
@@ -36,6 +40,78 @@ def _row_from_record(
         "char_end": prov.char_end,
         "embedding": embedding,
     }
+
+
+def _cosine_distance(a: list[float], b: list[float]) -> float:
+    """Match pgvector ``<=>`` cosine distance: ``1 - cosine_similarity``."""
+    if len(a) != len(b):
+        raise ValueError(f"Embedding length mismatch: {len(a)} vs {len(b)}")
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(x * x for x in b))
+    if norm_a == 0.0 or norm_b == 0.0:
+        return 1.0
+    return 1.0 - (dot / (norm_a * norm_b))
+
+
+def _fts_terms(query_text: str) -> list[str]:
+    """Tokenize a query for OR-style FTS (mirrors Postgres to_tsvector lexemes).
+
+    Stopwords and 1-char tokens are dropped so NL questions still match on
+    content words (any-term OR), rather than requiring every word to appear.
+    """
+    raw = [t for t in re.findall(r"[A-Za-z0-9_]+", query_text.lower()) if len(t) > 1]
+    return [t for t in raw if t not in _FTS_STOPWORDS]
+
+
+# Minimal English stopword set — enough to mirror to_tsvector dropping "what/are/is".
+_FTS_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "for",
+        "from",
+        "how",
+        "in",
+        "is",
+        "it",
+        "of",
+        "on",
+        "or",
+        "that",
+        "the",
+        "to",
+        "was",
+        "what",
+        "which",
+        "who",
+        "with",
+    }
+)
+
+
+def _fts_score(text: str, terms: list[str]) -> float:
+    """OR match: at least one term must hit; score = fraction of terms present."""
+    if not terms:
+        return 0.0
+    haystack = text.lower()
+    hits = sum(1 for term in terms if term in haystack)
+    if hits == 0:
+        return 0.0
+    return hits / len(terms)
+
+
+def _is_rankable(row: dict[str, Any]) -> bool:
+    chunk_type = row["chunk_type"]
+    if isinstance(chunk_type, ChunkType):
+        return chunk_type in (ChunkType.CHILD, ChunkType.TABLE)
+    return chunk_type in (ChunkType.CHILD.value, ChunkType.TABLE.value)
 
 
 class FakeChunkStore(ChunkStore):
@@ -79,8 +155,70 @@ class FakeChunkStore(ChunkStore):
             if row["chunk_type"] == ChunkType.PARENT and row["embedding"] is not None
         )
 
+    def clear(self) -> None:
+        self._rows.clear()
+
     def get_row(self, chunk_id: str) -> dict[str, Any] | None:
         row = self._rows.get(chunk_id)
         if row is None:
             return None
         return json.loads(json.dumps(row))
+
+    def search_dense(
+        self,
+        query_embedding: list[float],
+        k: int,
+        filters: dict[str, str] | None = None,
+    ) -> list[ScoredChunk]:
+        filters = validate_filters(filters)
+        scored: list[tuple[float, str, dict[str, Any]]] = []
+        for chunk_id, row in self._rows.items():
+            if row["embedding"] is None:
+                continue
+            if not _is_rankable(row):
+                continue
+            if filters and not row_matches_filters(row, filters):
+                continue
+            distance = _cosine_distance(query_embedding, row["embedding"])
+            scored.append((distance, chunk_id, row))
+
+        scored.sort(key=lambda item: (item[0], item[1]))
+        return [
+            ScoredChunk(chunk=chunk_record_from_row(row), score=distance)
+            for distance, _chunk_id, row in scored[:k]
+        ]
+
+    def search_fts(
+        self,
+        query_text: str,
+        k: int,
+        filters: dict[str, str] | None = None,
+    ) -> list[ScoredChunk]:
+        filters = validate_filters(filters)
+        terms = _fts_terms(query_text)
+        scored: list[tuple[float, str, dict[str, Any]]] = []
+        for chunk_id, row in self._rows.items():
+            # Embedded units only — mirrors Postgres `embedding IS NOT NULL`
+            # so 50k-char parents never pollute FTS → RRF.
+            if row["embedding"] is None:
+                continue
+            if filters and not row_matches_filters(row, filters):
+                continue
+            score = _fts_score(row["text"], terms)
+            if score <= 0.0:
+                continue
+            scored.append((score, chunk_id, row))
+
+        scored.sort(key=lambda item: (-item[0], item[1]))
+        return [
+            ScoredChunk(chunk=chunk_record_from_row(row), score=score)
+            for score, _chunk_id, row in scored[:k]
+        ]
+
+    def fetch_parent(self, parent_id: str) -> ChunkRecord | None:
+        row = self._rows.get(parent_id)
+        if row is None:
+            return None
+        if row["chunk_type"] != ChunkType.PARENT and row["chunk_type"] != ChunkType.PARENT.value:
+            return None
+        return chunk_record_from_row(row)

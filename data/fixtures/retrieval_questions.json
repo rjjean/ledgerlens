@@ -1,0 +1,61 @@
+{
+  "description": "Phase 3 informal recall fixture. Author ~10 hand questions with expected ticker/section provenance. Do not invent questions here — Ryan owns this file.",
+  "top_k": 10,
+  "questions": 
+    [
+      {
+        "id": "q01",
+        "question": "What are NVIDIA's principal risk factors?",
+        "expected": [{"ticker": "NVDA", "section": "Item 1A"}]
+      },
+      {
+        "id": "q02",
+        "question": "What was Apple's effective tax rate in fiscal 2025?",
+        "expected": [{"ticker": "AAPL", "section": "Item 7"}]
+      },
+      {
+        "id": "q03",
+        "question": "How does Apple's net sales break down by geographic segment?",
+        "expected": [{"ticker": "AAPL", "section": "Item 7"}]
+      },
+      {
+        "id": "q04",
+        "question": "What does Snowflake describe as its business model?",
+        "expected": [{"ticker": "SNOW", "section": "Item 1"}]
+      },
+      {
+        "id": "q05",
+        "question": "Which companies identify AI competition as a risk factor?",
+        "scoring": "breadth",
+        "min_tickers": 3,
+        "expected": [
+          {"section": "Item 1A"}
+        ]
+      },
+      {
+        "id": "q06",
+        "question": "What legal proceedings is Alphabet involved in?",
+        "expected": [{"ticker": "GOOGL", "section": "Item 8"}]
+      },
+      {
+        "id": "q07",
+        "question": "What is CrowdStrike's revenue recognition policy?",
+        "expected": [{"ticker": "CRWD", "section": "Item 8"}]
+      },
+      {
+        "id": "q08",
+        "question": "How did Microsoft's operating expenses change year over year?",
+        "expected": [{"ticker": "MSFT", "section": "Item 7"}]
+      },
+      {
+        "id": "q09",
+        "question": "What cybersecurity risk management processes does Palo Alto Networks have?",
+        "expected": [{"ticker": "PANW", "section": "Item 1C"}]
+      },
+      {
+        "id": "q10",
+        "question": "What is MongoDB's net interest margin?",
+        "expected": []
+      }
+  ]
+}

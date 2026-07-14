@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from collections import Counter
 from functools import lru_cache
 
 import tiktoken
@@ -170,11 +171,73 @@ def _child_chunks_from_prose(
     return children
 
 
+def _table_data_row_count(table_data: dict | None) -> int:
+    if not table_data:
+        return 0
+    rows = table_data.get("rows")
+    if not rows:
+        return 0
+    return len(rows)
+
+
+def filter_junk_table_chunks(
+    chunks: list[ChunkRecord],
+    settings: Settings,
+) -> tuple[list[ChunkRecord], list[str]]:
+    """Drop contentless page-header/footer tables; keep short tables with real rows.
+
+    Drops when:
+    - ``table_data`` has 0 data rows, or
+    - the exact linearized ``text`` appears ≥ ``junk_table_repeat_threshold``
+      times among tables in this filing (running header, not a unique table).
+
+    Returns (kept chunks, warning messages). Does not quarantine the filing.
+    """
+    tables = [c for c in chunks if c.chunk_type == ChunkType.TABLE]
+    text_counts = Counter(c.text for c in tables)
+    threshold = settings.junk_table_repeat_threshold
+
+    warnings: list[str] = []
+    kept: list[ChunkRecord] = []
+    for chunk in chunks:
+        if chunk.chunk_type != ChunkType.TABLE:
+            kept.append(chunk)
+            continue
+
+        row_count = _table_data_row_count(chunk.table_data)
+        if row_count == 0:
+            preview = (chunk.text or "")[:80]
+            warnings.append(
+                f"dropped junk table {chunk.id}: 0 data rows "
+                f"(section={chunk.provenance.section}, text={preview!r})"
+            )
+            continue
+
+        repeats = text_counts[chunk.text]
+        if repeats >= threshold:
+            preview = (chunk.text or "")[:80]
+            warnings.append(
+                f"dropped junk table {chunk.id}: repeated header text "
+                f"{repeats}× in filing (threshold={threshold}, "
+                f"section={chunk.provenance.section}, text={preview!r})"
+            )
+            continue
+
+        kept.append(chunk)
+
+    return kept, warnings
+
+
 def chunk_sections(
     filing: RawFiling,
     sections: list[Section],
     settings: Settings,
-) -> list[ChunkRecord]:
+) -> tuple[list[ChunkRecord], list[str]]:
+    """Chunk a filing into parent/child/table records.
+
+    Returns ``(chunks, warnings)``. Junk page-header tables are dropped with
+    warnings (not a quarantine).
+    """
     records: list[ChunkRecord] = []
     prefix = f"{filing.ticker}-{filing.accession_no}"
 
@@ -246,4 +309,5 @@ def chunk_sections(
                 )
             )
 
-    return records
+    kept, junk_warnings = filter_junk_table_chunks(records, settings)
+    return kept, junk_warnings

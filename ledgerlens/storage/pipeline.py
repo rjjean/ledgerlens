@@ -158,6 +158,8 @@ def run_embed_and_store(
     settings: Settings | None = None,
     store: ChunkStore | None = None,
     embedder: Embedder | None = None,
+    *,
+    truncate: bool = False,
 ) -> StorageReport:
     settings = settings or get_settings()
     store = store or get_chunk_store()
@@ -176,6 +178,9 @@ def run_embed_and_store(
 
     print(f"Loading {len(chunks)} chunks for {len(tickers)} ticker(s)")
     store.init_schema()
+    if truncate:
+        print("Truncating chunks table before reload...")
+        store.clear()
 
     print(f"Embedding child + table chunks via {settings.embedder_backend} backend...")
     embeddings = embed_targets(chunks, embedder, settings)

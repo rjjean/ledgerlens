@@ -166,6 +166,7 @@ def assess_filing(
     chunks: list[ChunkRecord],
     settings: Settings,
     section_warnings: list[str] | None = None,
+    tables_dropped: int = 0,
 ) -> FilingQualityResult:
     found_items = [section.item for section in filing.sections]
     missing = missing_expected_items(found_items)
@@ -204,6 +205,7 @@ def assess_filing(
         parent_count=parent_count,
         child_count=child_count,
         table_count=table_count,
+        tables_dropped=tables_dropped,
     )
 
 
@@ -252,7 +254,13 @@ def format_quality_summary(report: QualityReport) -> str:
             lines.append(
                 f"  OK {filing.ticker}: chunks={filing.chunk_count} "
                 f"(parents={filing.parent_count}, children={filing.child_count}, "
-                f"tables={filing.table_count}){missing_note}{warn_note}"
+                f"tables={filing.table_count}"
+                + (
+                    f", tables_dropped={filing.tables_dropped}"
+                    if filing.tables_dropped
+                    else ""
+                )
+                + f"){missing_note}{warn_note}"
             )
     if missing_expected := [
         item for result in report.filings for item in result.sections_missing

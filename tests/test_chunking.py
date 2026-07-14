@@ -47,7 +47,7 @@ def test_tables_are_never_sliced():
     )
     section = Section(item="Item 8", text=full_text, tables=[table])
     filing = _filing(full_text, [section])
-    chunks = chunk_sections(filing, [section], _settings())
+    chunks, _warnings = chunk_sections(filing, [section], _settings())
 
     table_chunks = [c for c in chunks if c.chunk_type == ChunkType.TABLE]
     parents = [c for c in chunks if c.chunk_type == ChunkType.PARENT]
@@ -72,7 +72,7 @@ def test_children_within_token_range():
     )
     filing = _filing(full_text, [section])
     settings = _settings(child_target_tokens=80, child_max_tokens=120)
-    chunks = chunk_sections(filing, [section], settings)
+    chunks, _warnings = chunk_sections(filing, [section], settings)
 
     children = [c for c in chunks if c.chunk_type == ChunkType.CHILD]
     assert len(children) >= 2
@@ -91,7 +91,7 @@ def test_provenance_complete_and_document_offsets():
         section_char_end=len(full_text),
     )
     filing = _filing(full_text, [section])
-    chunks = chunk_sections(filing, [section], _settings(child_target_tokens=200))
+    chunks, _warnings = chunk_sections(filing, [section], _settings(child_target_tokens=200))
 
     for chunk in chunks:
         prov = chunk.provenance
@@ -112,7 +112,9 @@ def test_parent_child_links_resolve():
     full_text = prose
     section = Section(item="Item 1A", text=prose)
     filing = _filing(full_text, [section])
-    chunks = chunk_sections(filing, [section], _settings(child_target_tokens=60, child_max_tokens=100))
+    chunks, _warnings = chunk_sections(
+        filing, [section], _settings(child_target_tokens=60, child_max_tokens=100)
+    )
 
     by_id = {chunk.id: chunk for chunk in chunks}
     parents = [c for c in chunks if c.chunk_type == ChunkType.PARENT]
@@ -141,3 +143,68 @@ def test_prose_without_tables_removes_table_body():
     assert table_text not in prose
     assert "Before table." in prose
     assert "After table." in prose
+
+
+def test_zero_row_tables_are_dropped():
+    toc = TableBlock(
+        table_id="toc",
+        headers=["Contents"],
+        rows=[],
+        linearized="Table of Contents Alphabet Inc.",
+        summary="TOC (0 rows)",
+        char_start=0,
+        char_end=31,
+    )
+    section = Section(item="Item 8", text="Financials.", tables=[toc])
+    filing = _filing("Financials.", [section])
+    chunks, warnings = chunk_sections(filing, [section], _settings())
+
+    assert [c for c in chunks if c.chunk_type == ChunkType.TABLE] == []
+    assert len(warnings) == 1
+    assert "0 data rows" in warnings[0]
+
+
+def test_repeated_page_header_tables_are_dropped():
+    """Exact running-header text (≥ threshold) is dropped even when a stub row exists."""
+    header = "Intuit Fiscal 2025 Form 10-K"
+    tables = [
+        TableBlock(
+            table_id=f"h{i}",
+            headers=["Page"],
+            rows=[[header]],
+            linearized=header,
+            summary="page header",
+            char_start=i * 40,
+            char_end=i * 40 + len(header),
+        )
+        for i in range(4)
+    ]
+    section = Section(item="Item 8", text="Financial statements.", tables=tables)
+    filing = _filing("Financial statements.", [section])
+    chunks, warnings = chunk_sections(filing, [section], _settings())
+
+    assert [c for c in chunks if c.chunk_type == ChunkType.TABLE] == []
+    assert len(warnings) == 4
+    assert all("repeated header text" in w for w in warnings)
+
+
+def test_legitimate_small_table_with_rows_is_kept():
+    """Short tables with real data rows (e.g. square footage) must not be dropped."""
+    small = TableBlock(
+        table_id="sqft",
+        headers=["Location", "Sq Ft"],
+        rows=[["HQ", "12000"]],
+        linearized="Location | Sq Ft\nHQ | 12000",
+        summary="Table in Item 2: Location (1 rows x 2 columns)",
+        char_start=0,
+        char_end=30,
+    )
+    section = Section(item="Item 2", text="Properties.", tables=[small])
+    filing = _filing("Properties.", [section])
+    chunks, warnings = chunk_sections(filing, [section], _settings())
+
+    table_chunks = [c for c in chunks if c.chunk_type == ChunkType.TABLE]
+    assert len(table_chunks) == 1
+    assert table_chunks[0].table_data is not None
+    assert len(table_chunks[0].table_data["rows"]) == 1
+    assert warnings == []

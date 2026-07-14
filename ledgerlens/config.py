@@ -74,6 +74,15 @@ class Settings(BaseSettings):
     hnsw_ef_construction: int = Field(default=64, ge=1)
     fts_language: str = "english"
 
+    # Phase 3 — hybrid retrieval
+    rrf_k: int = Field(default=60, ge=1)
+    dense_candidates: int = Field(default=50, ge=1)
+    fts_candidates: int = Field(default=50, ge=1)
+    rerank_candidates: int = Field(default=30, ge=1)
+    retrieval_top_k: int = Field(default=10, ge=1)
+    rerank_enabled: bool = True
+    retrieval_eval_path: Path = Path("data/fixtures/retrieval_questions.json")
+
     # Phase 1 — ingestion & chunking
     tickers: list[str] = Field(default_factory=lambda: list(MVP_TICKERS))
     edgar_identity: str | None = None
@@ -82,6 +91,8 @@ class Settings(BaseSettings):
     child_max_tokens: int = Field(default=500, ge=1)
     child_hard_max_tokens: int = Field(default=800, ge=1)
     child_overlap_tokens: int = Field(default=0, ge=0, le=100)
+    # Drop page-header/footer tables: 0 rows, or exact text ≥ this many times/filing.
+    junk_table_repeat_threshold: int = Field(default=3, ge=2)
     critical_sections: list[str] = Field(default_factory=lambda: list(CRITICAL_10K_SECTIONS))
     section_content_placeholders: list[str] = Field(
         default_factory=lambda: list(DEFAULT_SECTION_CONTENT_PLACEHOLDERS)

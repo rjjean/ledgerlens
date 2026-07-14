@@ -129,6 +129,18 @@ def test_upsert_idempotent(storage_settings: Settings):
     assert store.count_rows() == first_count
 
 
+def test_clear_removes_all_rows(storage_settings: Settings):
+    store = FakeChunkStore()
+    embedder = FakeEmbedder(storage_settings)
+    chunks = _fixture_chunks()
+    embeddings = embed_targets(chunks, embedder, storage_settings)
+    store.upsert_chunks(chunks, embeddings)
+    assert store.count_rows() == 3
+    store.clear()
+    assert store.count_rows() == 0
+    assert store.count_embedded() == 0
+
+
 def test_provenance_round_trip(storage_settings: Settings):
     store = FakeChunkStore()
     embedder = FakeEmbedder(storage_settings)

@@ -24,6 +24,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help=f"Embed and store all {len(MVP_TICKERS)} locked MVP tickers present in chunks.jsonl.",
     )
+    parser.add_argument(
+        "--truncate",
+        action="store_true",
+        help=(
+            "Clear the chunks table before upsert. Required when reloading a cleaned "
+            "corpus so orphaned junk rows (ids no longer in jsonl) are not left behind."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -38,11 +46,12 @@ def main(argv: list[str] | None = None) -> int:
 
     print(
         f"Embed + store for {len(tickers)} ticker(s): {', '.join(tickers)} "
-        f"(embedder={settings.embedder_backend}, storage={settings.storage_backend})"
+        f"(embedder={settings.embedder_backend}, storage={settings.storage_backend}"
+        f"{', truncate' if args.truncate else ''})"
     )
 
     try:
-        run_embed_and_store(tickers, settings=settings)
+        run_embed_and_store(tickers, settings=settings, truncate=args.truncate)
     except (ReconciliationError, FileNotFoundError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 1

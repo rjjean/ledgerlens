@@ -81,8 +81,15 @@ def process_ticker(
         )
 
     sections = payloads_to_sections(raw_filing.sections)
-    chunks = chunk_sections(raw_filing, sections, settings)
-    result = assess_filing(raw_filing, chunks, settings, section_warnings=section_warnings)
+    chunks, junk_warnings = chunk_sections(raw_filing, sections, settings)
+    all_warnings = list(section_warnings) + list(junk_warnings)
+    result = assess_filing(
+        raw_filing,
+        chunks,
+        settings,
+        section_warnings=all_warnings,
+        tables_dropped=len(junk_warnings),
+    )
 
     if result.status == "quarantined":
         return [], result

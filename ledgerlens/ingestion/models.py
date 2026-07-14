@@ -126,6 +126,7 @@ class FilingQualityResult(BaseModel):
     parent_count: int = 0
     child_count: int = 0
     table_count: int = 0
+    tables_dropped: int = 0
 
 
 class QualityReport(BaseModel):
