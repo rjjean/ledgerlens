@@ -80,7 +80,8 @@ class Settings(BaseSettings):
     fts_candidates: int = Field(default=50, ge=1)
     rerank_candidates: int = Field(default=30, ge=1)
     retrieval_top_k: int = Field(default=10, ge=1)
-    rerank_enabled: bool = True
+    rerank_enabled: bool = False
+    ticker_filter_enabled: bool = True
     retrieval_eval_path: Path = Path("data/fixtures/retrieval_questions.json")
 
     # Phase 1 — ingestion & chunking

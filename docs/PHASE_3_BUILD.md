@@ -1,8 +1,8 @@
 ---
 type: plan
-status: active
+status: accepted
 phase: 3
-updated: 2026-06-23
+updated: 2026-07-14
 related: ["[[handoff]]", "[[BUILD_PLAN]]", "[[PHASE_2_BUILD]]", "[[Ledgerlens_System_Design_FINAL]]"]
 ---
 

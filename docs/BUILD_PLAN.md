@@ -1,9 +1,9 @@
 ---
 type: plan
 status: active
-phase: 3
-updated: 2026-06-23
-related: ["[[handoff]]", "[[PHASE_0_BUILD]]", "[[PHASE_1_BUILD]]", "[[PHASE_2_BUILD]]", "[[Ledgerlens_System_Design_FINAL]]"]
+phase: 4
+updated: 2026-07-14
+related: ["[[handoff]]", "[[PHASE_0_BUILD]]", "[[PHASE_1_BUILD]]", "[[PHASE_2_BUILD]]", "[[PHASE_3_BUILD]]", "[[Ledgerlens_System_Design_FINAL]]"]
 ---
 
 # Build Plan & Phase Tracker
@@ -28,8 +28,10 @@ unfinished repos. Build narrow, finish, then iterate.
       gate; pytest offline; full 18-ticker corpus embedded via voyage-finance-2 and
       reconciled in Neon (5780 rows / 5368 embedded / 412 parents).
       *(2026-06-23 — complete.)*
-- [ ] **Phase 3 — Retrieval.** FTS + pgvector + RRF (k=60) + MiniLM rerank. Informal
-      recall check on ~10 hand questions. Validate rerank uplift.
+- [x] **Phase 3 — Retrieval.** FTS + pgvector + RRF (k=60) + optional MiniLM rerank
+      (default off) + ticker pre-filter. Informal recall on ~10 hand questions.
+      *Done-when:* hybrid retrieve with provenance; shipped config filter ON / rerank OFF —
+      R@1 0.556, R@10 1.000, MRR 0.704. *(2026-07-14 — complete.)*
 - [ ] **Phase 4 — Synthesis + citations.** Thin custom RAG core, Haiku 4.5 via LiteLLM,
       citation-grounded prompt, abstain-when-weak.
 - [ ] **Phase 5 — Product surface + deploy (MVP LIVE).** FastAPI + Next.js chat with

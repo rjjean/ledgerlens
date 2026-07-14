@@ -9,6 +9,7 @@ from ledgerlens.ingestion.models import ChunkRecord
 from ledgerlens.interfaces.embedder import Embedder
 from ledgerlens.interfaces.factory import get_embedder, get_reranker
 from ledgerlens.interfaces.reranker import Reranker
+from ledgerlens.retrieval.entities import resolve_ticker
 from ledgerlens.retrieval.fusion import reciprocal_rank_fusion
 from ledgerlens.retrieval.models import RetrievalResult, ScoredChunk
 from ledgerlens.retrieval.text import rerank_text_for_chunk
@@ -23,6 +24,8 @@ class LegStats:
     dense_count: int
     fts_count: int
     overlap_count: int
+    resolved_ticker: str | None = None
+    ticker_filter_applied: bool = False
 
 
 class HybridRetriever:
@@ -45,9 +48,14 @@ class HybridRetriever:
         filters: dict[str, str] | None = None,
         *,
         rerank_enabled: bool | None = None,
+        ticker_filter_enabled: bool | None = None,
     ) -> list[RetrievalResult]:
         results, _stats = self.retrieve_with_stats(
-            query, top_k=top_k, filters=filters, rerank_enabled=rerank_enabled
+            query,
+            top_k=top_k,
+            filters=filters,
+            rerank_enabled=rerank_enabled,
+            ticker_filter_enabled=ticker_filter_enabled,
         )
         return results
 
@@ -58,14 +66,34 @@ class HybridRetriever:
         filters: dict[str, str] | None = None,
         *,
         rerank_enabled: bool | None = None,
+        ticker_filter_enabled: bool | None = None,
     ) -> tuple[list[RetrievalResult], LegStats]:
         settings = self._settings
         final_k = top_k if top_k is not None else settings.retrieval_top_k
         do_rerank = settings.rerank_enabled if rerank_enabled is None else rerank_enabled
+        do_ticker_filter = (
+            settings.ticker_filter_enabled
+            if ticker_filter_enabled is None
+            else ticker_filter_enabled
+        )
+
+        resolved: str | None = None
+        effective_filters = filters
+        ticker_filter_applied = False
+        # Explicit caller filters always win — never override them.
+        if filters is None and do_ticker_filter:
+            resolved = resolve_ticker(query)
+            if resolved is not None:
+                effective_filters = {"ticker": resolved}
+                ticker_filter_applied = True
+        elif filters is None:
+            resolved = resolve_ticker(query)
 
         query_vec = self._embedder.embed_query(query)
-        dense = self._store.search_dense(query_vec, settings.dense_candidates, filters)
-        fts = self._store.search_fts(query, settings.fts_candidates, filters)
+        dense = self._store.search_dense(
+            query_vec, settings.dense_candidates, effective_filters
+        )
+        fts = self._store.search_fts(query, settings.fts_candidates, effective_filters)
 
         dense_ids = {hit.chunk.id for hit in dense}
         fts_ids = {hit.chunk.id for hit in fts}
@@ -73,6 +101,8 @@ class HybridRetriever:
             dense_count=len(dense),
             fts_count=len(fts),
             overlap_count=len(dense_ids & fts_ids),
+            resolved_ticker=resolved,
+            ticker_filter_applied=ticker_filter_applied,
         )
 
         by_id, dense_scores, fts_scores = _index_leg_hits(dense, fts)

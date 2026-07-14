@@ -1,9 +1,9 @@
 ---
 type: index
 status: active
-phase: 3
-updated: 2026-06-23
-related: ["[[handoff]]", "[[BUILD_PLAN]]", "[[PHASE_1_BUILD]]", "[[PHASE_2_BUILD]]"]
+phase: 4
+updated: 2026-07-14
+related: ["[[handoff]]", "[[BUILD_PLAN]]", "[[PHASE_3_BUILD]]", "[[PHASE_2_BUILD]]", "[[PHASE_1_BUILD]]"]
 ---
 
 # Ledgerlens — Vault Home
@@ -14,19 +14,20 @@ vault**, and a **Cursor workspace** (worked in Composer / Agent).
 
 > Ledgerlens: a citation-grounded RAG product over SEC filings with a published
 > evaluation harness. The flagship portfolio project.
-> **Status: Phase 2 complete (storage + embeddings; full 18-ticker corpus embedded and reconciled in Neon). Phase 3 active.**
+> **Status: Phase 3 complete (hybrid retrieval; filter ON / rerank OFF — R@1 0.556,
+> R@10 1.000, MRR 0.704). Phase 4 active.**
 
 ## Start here
 - [[handoff]] — where the build is right now. **Read first every session.**
-- [[BUILD_PLAN]] — phase tracker; **Phase 3 (retrieval) is the active build task.**
+- [[BUILD_PLAN]] — phase tracker; **Phase 4 (synthesis + citations) is the active build task.**
 - [[GETTING_STARTED]] — setup + how to work in Cursor + Composer.
 - [[CONVENTIONS]] — how this vault/repo is organized and edited.
 
 ## Build
 - [[Ledgerlens_System_Design_FINAL]] — locked architecture + stack (authoritative).
-- [[BUILD_PLAN]] — phase tracker (MVP -> v1 -> v2); Phase 2 done, Phase 3 active.
+- [[BUILD_PLAN]] — phase tracker (MVP -> v1 -> v2); Phase 3 done, Phase 4 active.
 - [[01_Ledgerlens_Project_Outline]] — the why / scope / direction.
-- Build briefs: [[PHASE_0_BUILD]] (done) · [[PHASE_1_BUILD]] (done) · [[PHASE_2_BUILD]] (done).
+- Build briefs: [[PHASE_0_BUILD]] (done) · [[PHASE_1_BUILD]] (done) · [[PHASE_2_BUILD]] (done) · [[PHASE_3_BUILD]] (done).
 - Decision records: [[0000-adr-template]] · [[0001-single-postgres-over-dedicated-vector-db]] · [[0002-chunking-strategy-for-SEC-filings]] (accepted).
 
 > The AI guardrails Cursor follows live in `.cursor/rules/` (`00-project` always on;
@@ -42,5 +43,6 @@ convert the lines below to wiki-links.)*
   merchant matching), AskWarehouse (agentic text-to-SQL copilot).
 
 ## Current focus
-**Phase 3 — retrieval.** Hybrid FTS + pgvector + RRF (k=60) + MiniLM rerank behind
-the existing seams. See [[handoff]] and [[BUILD_PLAN]].
+**Phase 4 — synthesis + citations.** Thin RAG core over `retrieve()`, parent expansion
+via `fetch_parent`, Haiku via LiteLLM, citation-grounded prompt, abstain-when-weak.
+See [[handoff]] and [[BUILD_PLAN]].

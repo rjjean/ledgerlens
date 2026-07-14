@@ -10,6 +10,7 @@ __all__ = [
     "ScoredChunk",
     "reciprocal_rank_fusion",
     "rerank_text_for_chunk",
+    "resolve_ticker",
 ]
 
 
@@ -28,4 +29,8 @@ def __getattr__(name: str):
         from ledgerlens.retrieval.text import rerank_text_for_chunk
 
         return rerank_text_for_chunk
+    if name == "resolve_ticker":
+        from ledgerlens.retrieval.entities import resolve_ticker
+
+        return resolve_ticker
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

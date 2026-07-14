@@ -263,7 +263,13 @@ def test_eval_excludes_negative_controls_from_recall(retrieval_settings: Setting
             expected=[],
         ),
     ]
-    report = evaluate(retriever, questions, top_k=3, rerank_enabled=False)
+    report = evaluate(
+        retriever,
+        questions,
+        top_k=3,
+        rerank_enabled=False,
+        ticker_filter_enabled=False,
+    )
     assert report["total"] == 1
     assert len(report["questions"]) == 1
     assert report["questions"][0]["id"] == "q-scored"
@@ -361,10 +367,66 @@ def test_retrieve_with_stats_reports_leg_counts(retrieval_settings: Settings):
         "What are NVIDIA's principal risk factors?",
         top_k=3,
         rerank_enabled=False,
+        ticker_filter_enabled=True,
     )
     assert stats.dense_count >= 1
     assert stats.fts_count >= 1
     assert 0 <= stats.overlap_count <= min(stats.dense_count, stats.fts_count)
+    assert stats.resolved_ticker == "NVDA"
+    assert stats.ticker_filter_applied is True
+
+
+def test_resolve_ticker_aliases_and_ambiguity():
+    from ledgerlens.retrieval.entities import resolve_ticker
+
+    assert resolve_ticker("What did Alphabet report?") == "GOOGL"
+    assert resolve_ticker("google cloud risks") == "GOOGL"
+    # Common-English "now" must not resolve to ServiceNow.
+    assert resolve_ticker("What does Microsoft do now?") == "MSFT"
+    assert resolve_ticker("ServiceNow revenue recognition") == "NOW"
+    assert resolve_ticker("Compare Microsoft and Apple margins") is None
+    assert resolve_ticker("Which companies identify AI competition as a risk factor?") is None
+    assert resolve_ticker("What is MongoDB's net interest margin?") == "MDB"
+
+
+def test_ticker_filter_respects_explicit_filters(retrieval_settings: Settings):
+    store = _seed_store()
+    settings = retrieval_settings.model_copy(update={"ticker_filter_enabled": True})
+    retriever = HybridRetriever(
+        settings=settings,
+        store=store,
+        embedder=_FixedQueryEmbedder(settings),
+        reranker=FakeReranker(settings),
+    )
+    # Explicit NVDA filter must win even though the query names Microsoft.
+    results, stats = retriever.retrieve_with_stats(
+        "What does Microsoft say about risk factors?",
+        top_k=5,
+        filters={"ticker": "NVDA"},
+        rerank_enabled=False,
+    )
+    assert results
+    assert all(r.chunk.provenance.ticker == "NVDA" for r in results)
+    assert stats.ticker_filter_applied is False
+
+
+def test_ticker_filter_disabled_retrieves_corpus_wide(retrieval_settings: Settings):
+    store = _seed_store()
+    settings = retrieval_settings.model_copy(update={"ticker_filter_enabled": False})
+    retriever = HybridRetriever(
+        settings=settings,
+        store=store,
+        embedder=_FixedQueryEmbedder(settings),
+        reranker=FakeReranker(settings),
+    )
+    _results, stats = retriever.retrieve_with_stats(
+        "NVIDIA risk factors",
+        top_k=5,
+        rerank_enabled=False,
+        ticker_filter_enabled=False,
+    )
+    assert stats.resolved_ticker == "NVDA"
+    assert stats.ticker_filter_applied is False
 
 
 @pytest.mark.skipif(not os.environ.get("DATABASE_URL"), reason="DATABASE_URL not set")

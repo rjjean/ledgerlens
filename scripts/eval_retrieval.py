@@ -224,6 +224,7 @@ def evaluate(
     top_k: int,
     *,
     rerank_enabled: bool,
+    ticker_filter_enabled: bool,
 ) -> dict[str, Any]:
     scored: list[dict[str, Any]] = []
     negative_controls: list[dict[str, Any]] = []
@@ -235,12 +236,15 @@ def evaluate(
             item.question,
             top_k=top_k,
             rerank_enabled=rerank_enabled,
+            ticker_filter_enabled=ticker_filter_enabled,
         )
         serialized = _serialize_results(results)
         leg_payload = {
             "dense": leg_stats.dense_count,
             "fts": leg_stats.fts_count,
             "overlap": leg_stats.overlap_count,
+            "resolved_ticker": leg_stats.resolved_ticker,
+            "ticker_filter_applied": leg_stats.ticker_filter_applied,
         }
 
         if item.is_negative_control:
@@ -297,10 +301,10 @@ def evaluate(
     metrics["hits"] = {k: cutoff_hits[k] for k in RECALL_CUTOFFS}
     return {
         "rerank_enabled": rerank_enabled,
+        "ticker_filter_enabled": ticker_filter_enabled,
         "top_k": top_k,
         "total": total,
         "metrics": metrics,
-        # Back-compat keys used by older print paths / tests
         "hits": cutoff_hits.get(top_k, cutoff_hits[10]),
         "recall_at_k": metrics.get(f"recall@{top_k}", metrics["recall@10"]),
         "questions": scored,
@@ -334,7 +338,11 @@ def _format_metrics(metrics: dict[str, Any]) -> str:
 
 
 def _print_run(label: str, report: dict[str, Any]) -> None:
-    print(f"\n=== {label} (rerank_enabled={report['rerank_enabled']}) ===")
+    print(
+        f"\n=== {label} "
+        f"(ticker_filter={report['ticker_filter_enabled']}, "
+        f"rerank={report['rerank_enabled']}) ==="
+    )
     print(_format_metrics(report["metrics"]))
     hits = report["metrics"]["hits"]
     total = report["total"]
@@ -346,9 +354,14 @@ def _print_run(label: str, report: dict[str, Any]) -> None:
         mark = "HIT " if item["hit"] else "MISS"
         leg = item["leg_stats"]
         scoring = item.get("scoring", SCORING_EXACT)
+        resolved = leg.get("resolved_ticker")
+        resolved_s = resolved if resolved else "none"
+        applied = "yes" if leg.get("ticker_filter_applied") else "no"
         print(
             f"\n[{mark}] {item['id']}: {item['question']}\n"
-            f"  scoring={scoring}  legs: dense={leg['dense']}  fts={leg['fts']}  "
+            f"  scoring={scoring}  resolved_ticker={resolved_s}  "
+            f"filter_applied={applied}\n"
+            f"  legs: dense={leg['dense']}  fts={leg['fts']}  "
             f"overlap={leg['overlap']}  first_hit_rank={item['first_hit_rank']}"
         )
         for hit in item["results"]:
@@ -359,9 +372,12 @@ def _print_run(label: str, report: dict[str, Any]) -> None:
         print("\n--- Negative controls — manual inspection ---")
         for item in controls:
             leg = item["leg_stats"]
+            resolved = leg.get("resolved_ticker")
+            resolved_s = resolved if resolved else "none"
             print(
                 f"\n[NEG ] {item['id']}: {item['question']}\n"
-                f"  legs: dense={leg['dense']}  fts={leg['fts']}  "
+                f"  resolved_ticker={resolved_s}  "
+                f"legs: dense={leg['dense']}  fts={leg['fts']}  "
                 f"overlap={leg['overlap']}"
             )
             if not item["results"]:
@@ -371,20 +387,42 @@ def _print_run(label: str, report: dict[str, Any]) -> None:
                 print(_format_hit_line(hit))
 
 
-def _print_uplift(off: dict[str, Any], on: dict[str, Any]) -> None:
-    print("\n=== rerank uplift ===")
-    off_m = off["metrics"]
-    on_m = on["metrics"]
-    for k in RECALL_CUTOFFS:
-        key = f"recall@{k}"
-        delta = on_m[key] - off_m[key]
-        print(
-            f"  {key}: on={on_m[key]:.3f}  off={off_m[key]:.3f}  delta={delta:+.3f}"
-        )
-    mrr_delta = on_m["mrr"] - off_m["mrr"]
-    print(
-        f"  MRR: on={on_m['mrr']:.3f}  off={off_m['mrr']:.3f}  delta={mrr_delta:+.3f}"
-    )
+def _print_uplift_matrix(reports: dict[tuple[bool, bool], dict[str, Any]]) -> None:
+    """Print 2×2 summary: ticker filter on/off × rerank on/off."""
+    print("\n=== 2×2 summary (filter × rerank) ===")
+    header = f"{'filter':<8} {'rerank':<8} " + "  ".join(
+        f"{'R@'+str(k):>6}" for k in RECALL_CUTOFFS
+    ) + f"  {'MRR':>6}"
+    print(header)
+    for filter_on in (False, True):
+        for rerank_on in (False, True):
+            report = reports[(filter_on, rerank_on)]
+            m = report["metrics"]
+            row = (
+                f"{('ON' if filter_on else 'OFF'):<8} "
+                f"{('ON' if rerank_on else 'OFF'):<8} "
+                + "  ".join(f"{m[f'recall@{k}']:>6.3f}" for k in RECALL_CUTOFFS)
+                + f"  {m['mrr']:>6.3f}"
+            )
+            print(row)
+
+    print("\n=== deltas vs filter=OFF rerank=OFF ===")
+    base = reports[(False, False)]["metrics"]
+    for filter_on in (False, True):
+        for rerank_on in (False, True):
+            if (filter_on, rerank_on) == (False, False):
+                continue
+            m = reports[(filter_on, rerank_on)]["metrics"]
+            parts = [
+                f"R@{k}={m[f'recall@{k}'] - base[f'recall@{k}']:+.3f}"
+                for k in RECALL_CUTOFFS
+            ]
+            parts.append(f"MRR={m['mrr'] - base['mrr']:+.3f}")
+            print(
+                f"  filter={'ON' if filter_on else 'OFF'} "
+                f"rerank={'ON' if rerank_on else 'OFF'}: "
+                + "  ".join(parts)
+            )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -439,12 +477,24 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     retriever = HybridRetriever(settings=settings)
-    off = evaluate(retriever, questions, top_k, rerank_enabled=False)
-    on = evaluate(retriever, questions, top_k, rerank_enabled=True)
+    reports: dict[tuple[bool, bool], dict[str, Any]] = {}
+    for filter_on in (False, True):
+        for rerank_on in (False, True):
+            label = (
+                f"filter={'ON' if filter_on else 'OFF'} "
+                f"rerank={'ON' if rerank_on else 'OFF'}"
+            )
+            report = evaluate(
+                retriever,
+                questions,
+                top_k,
+                rerank_enabled=rerank_on,
+                ticker_filter_enabled=filter_on,
+            )
+            reports[(filter_on, rerank_on)] = report
+            _print_run(label, report)
 
-    _print_run("rerank OFF", off)
-    _print_run("rerank ON", on)
-    _print_uplift(off, on)
+    _print_uplift_matrix(reports)
     return 0
 
 
